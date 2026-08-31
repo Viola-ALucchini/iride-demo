@@ -160,6 +160,10 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
 .destbtn .r{font-size:16px;font-weight:800;color:var(--berry)}
 .destbtn .rr{font-size:12px;color:var(--muted)}
 .destbtn .go{margin-left:auto;font-size:13px;font-weight:700;color:var(--berry)}
+.plrow{display:flex;gap:8px;align-items:stretch;margin-bottom:6px}
+.plrow .destbtn{flex:1;margin:0}
+.plrow .rowmove{flex:0 0 auto;border:none;border-radius:12px;background:var(--move);color:#fff;font-weight:800;font-size:14px;padding:0 16px}
+.plrow .rowmove:active{filter:brightness(.92)}
 .bigbtn{width:100%;border:none;border-radius:13px;font-weight:800;font-size:16px;padding:15px;color:#fff;margin-top:6px}
 .bigbtn.add{background:var(--add)} .bigbtn.add:active{filter:brightness(.92)}
 .bigbtn.move{background:var(--move)}
@@ -575,16 +579,26 @@ function openProductCard(code){
   } else {
     const dup=places.length>1;
     html+='<div class="status placed">È a scaffale in '+places.length+(dup?' ripiani (posizione duplicata).':' ripiano.')+'</div>';
-    html+='<h4>'+(dup?'Scegli il ripiano da gestire':'Vai al ripiano')+'</h4>';
+    html+='<h4>'+(dup?'Dove si trova — scegli quale posizione spostare':'Dove si trova')+'</h4>';
     places.forEach(pl=>{
-      html+='<button class="destbtn" data-goto="'+pl.r+'"><div><div class="r">'+pl.r+'</div><div class="rr">scaffale '+RIPIANI[pl.r]+' · '+(pl.role==='prin'?'principale':'duplicato')+'</div></div><span class="go">Gestisci ›</span></button>';
+      html+='<div class="plrow"><button class="destbtn" data-goto="'+pl.r+'"><div><div class="r">'+pl.r+'</div><div class="rr">scaffale '+RIPIANI[pl.r]+' · '+(pl.role==='prin'?'principale':'duplicato')+'</div></div><span class="go">Apri ›</span></button>'+
+        '<button class="rowmove" data-move="'+pl.r+'">Sposta</button></div>';
     });
+    html+='<h4>Azioni</h4>';
+    if(view.name==='ripiano' && !places.some(pl=>pl.r===view.code)){
+      html+= dup ? '' : '<button class="bigbtn move" data-movehere="'+view.code+'">Sposta qui — '+view.code+'</button>';
+      html+='<button class="bigbtn ghost" data-here="'+view.code+'">Aggiungi anche qui — '+view.code+' (duplicato)</button>';
+    }
+    if(!dup) html+='<button class="bigbtn move" data-move="'+places[0].r+'">Sposta — spara ripiano di destinazione</button>';
+    html+='<button class="bigbtn ghost" data-addelse="1">Aggiungi anche in un altro ripiano… (duplicato)</button>';
   }
   html+='<button class="close">Chiudi</button>';
   sh.innerHTML=html;
 
   sh.querySelectorAll('[data-goto]').forEach(b=>b.onclick=()=>{closeAll();FX.open();openRipiano(b.dataset.goto);});
   const hb=sh.querySelector('[data-here]'); if(hb)hb.onclick=()=>{closeAll();doAdd(pid,hb.dataset.here);};
+  sh.querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>{closeAll();startMove(pid,b.dataset.move);});
+  const mh=sh.querySelector('[data-movehere]'); if(mh)mh.onclick=()=>{closeAll();doMove(pid,places[0].r,mh.dataset.movehere);};
   const ae=sh.querySelector('[data-addelse]'); if(ae)ae.onclick=()=>{closeAll();startAdd(pid);};
   sh.querySelector('.close').onclick=closeAll;
   document.body.appendChild(wrap);
