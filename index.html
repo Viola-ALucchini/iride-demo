@@ -278,7 +278,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
   <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
   <button class="entra" id="btnEntra">ENTRA</button>
-  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v12</b></div>
+  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v13</b></div>
   <div class="pv" id="gateData">dati: caricamento…</div>
 </div>
 
@@ -294,7 +294,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
 </div>
 
 <div class="pending hidden" id="pending">
-  <span class="ic">🡒</span>
+  <span class="ic">→</span>
   <div class="tx" id="pendingTx"></div>
   <button class="cancel" id="pendingCancel">Annulla</button>
 </div>
@@ -567,7 +567,7 @@ function productRow(pl,r){
   const br=document.createElement('button');br.className='b-rem';br.textContent='Togli';
   br.onclick=()=>doRemove(pl.pid,r);
   const bm=document.createElement('button');bm.className='b-move';bm.textContent='Sposta';
-  bm.onclick=()=>startMove(pl.pid,r);
+  bm.onclick=()=>{startMove(pl.pid,r);armScan();};
   acts.append(br,bm);   // Togli left, Sposta right
   return row;
 }
@@ -688,7 +688,7 @@ function openProductCard(code){
         '<div class="sheet-foot"><button class="close">Chiudi</button><button class="rescan">⌖&nbsp; Scansiona</button></div>';
       const mk=()=>createProduct([fd.minsan].concat(fd.ean?[fd.ean]:[]).concat(code!==fd.minsan&&code!==fd.ean?[code]:[]), fd.name, fd.cat, 'farmadati');
       const hb=sh.querySelector('[data-fdhere]'); if(hb)hb.onclick=()=>{const np=mk();closeAll();doAdd(np,hb.dataset.fdhere);};
-      sh.querySelector('[data-fdscan]').onclick=()=>{const np=mk();startAdd(np);closeAll();};
+      sh.querySelector('[data-fdscan]').onclick=()=>{const np=mk();startAdd(np);closeAll();armScan();};
     } else {
       FX.err();
       sh.innerHTML='<div class="grip"></div><div class="pname">Codice sconosciuto</div>'+
@@ -700,7 +700,7 @@ function openProductCard(code){
         '<div class="sheet-foot"><button class="close">Chiudi</button><button class="rescan">⌖&nbsp; Scansiona</button></div>';
       const mk=()=>createProduct([code], 'DA COMPLETARE · '+code, 'W - Da classificare', 'park');
       const hb=sh.querySelector('[data-pkhere]'); if(hb)hb.onclick=()=>{const np=mk();closeAll();doAdd(np,hb.dataset.pkhere);};
-      sh.querySelector('[data-pkscan]').onclick=()=>{const np=mk();startAdd(np);closeAll();};
+      sh.querySelector('[data-pkscan]').onclick=()=>{const np=mk();startAdd(np);closeAll();armScan();};
     }
     sh.querySelector('.close').onclick=closeAll; sh.querySelector('.rescan').onclick=()=>{closeAll();openScan();};
     document.body.appendChild(wrap); return;
@@ -741,10 +741,10 @@ function openProductCard(code){
 
   sh.querySelectorAll('[data-goto]').forEach(b=>b.onclick=()=>{closeAll();FX.open();openRipiano(b.dataset.goto);});
   const hb=sh.querySelector('[data-here]'); if(hb)hb.onclick=()=>{closeAll();doAdd(pid,hb.dataset.here);};
-  sh.querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>{startMove(pid,b.dataset.move);closeAll();});
+  sh.querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>{startMove(pid,b.dataset.move);closeAll();armScan();});
   sh.querySelectorAll('[data-rem]').forEach(b=>b.onclick=()=>{closeAll();doRemove(pid,b.dataset.rem);});
   const mh=sh.querySelector('[data-movehere]'); if(mh)mh.onclick=()=>{closeAll();doMove(pid,places[0].r,mh.dataset.movehere);};
-  const ae=sh.querySelector('[data-addelse]'); if(ae)ae.onclick=()=>{startAdd(pid);closeAll();};
+  const ae=sh.querySelector('[data-addelse]'); if(ae)ae.onclick=()=>{startAdd(pid);closeAll();armScan();};
   sh.querySelector('.close').onclick=closeAll;
   document.body.appendChild(wrap);
 }
@@ -752,6 +752,7 @@ function openProductCard(code){
 /* =========================================================================
    MUTATIONS  (+ pending destination flow)
    ========================================================================= */
+function armScan(){ if(view.name!=='scaffale') openScan(); }
 function startMove(pid,from){ pendOp={op:'move',pid,from}; renderPending(); if(view.name==='scaffale') render();
   toast('Spara il ripiano di destinazione','move'); FX.nav(); }
 function startAdd(pid){ pendOp={op:'add',pid}; renderPending(); if(view.name==='scaffale') render();
