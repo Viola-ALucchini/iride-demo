@@ -108,6 +108,23 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
 .cardbtn .cnt b{font-size:20px;font-weight:800;color:var(--berry)}
 .cardbtn .cnt span{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 
+/* hierarchical nav */
+.navbar{display:flex;gap:8px;margin:-4px 0 12px}
+.navbar button{flex:1;background:var(--card);border:1px solid var(--line);border-radius:11px;padding:10px 8px;
+  font-size:13px;font-weight:700;color:var(--berry);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.navbar button:disabled{opacity:.35}
+.navbar button.up{flex:1.6}
+/* accordion ripiani in scaffale view */
+.acc{background:var(--card);border:1px solid var(--line);border-radius:14px;margin-bottom:9px;overflow:hidden}
+.acc-h{display:flex;align-items:center;gap:12px;padding:12px 12px 12px 14px}
+.acc-h .tog{flex:1;display:flex;align-items:center;gap:12px;background:none;border:none;text-align:left;padding:0;color:var(--ink)}
+.acc-h .chev{width:22px;text-align:center;font-size:18px;color:var(--muted);transition:transform .15s}
+.acc.open .chev{transform:rotate(90deg)}
+.acc-h .goto{flex:0 0 auto;background:var(--cream-2);border:1px solid var(--line);border-radius:9px;padding:8px 10px;font-size:12px;font-weight:800;color:var(--berry)}
+.acc-b{display:none;padding:2px 10px 10px;background:var(--cream)}
+.acc.open .acc-b{display:block}
+.acc-b .pcard{margin-bottom:7px}
+.acc-b .emptybox{margin:6px 0 2px}
 /* ripiano header card */
 .rhead{background:linear-gradient(180deg,var(--berry-deep),var(--berry));color:#fff;
   border-radius:16px;padding:16px;margin-bottom:14px}
@@ -259,7 +276,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
   <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
   <button class="entra" id="btnEntra">ENTRA</button>
-  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v5</b></div>
+  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v6</b></div>
 </div>
 
 <header>
@@ -454,8 +471,8 @@ function render(){
 function renderCrumb(){
   $('btnBack').classList.toggle('hidden', stack.length===0);
   let path='Home';
-  if(view.name==='scaffale') path='Scaffale '+view.code+' · '+SCAFFALI[view.code];
-  else if(view.name==='ripiano') path='Ripiano '+view.code;
+  if(view.name==='scaffale') path='Home › '+view.code+' · '+SCAFFALI[view.code];
+  else if(view.name==='ripiano') path='Home › '+RIPIANI[view.code]+' › '+view.code;
   $('crumb').textContent=path;
 }
 function renderPending(){
@@ -506,37 +523,60 @@ function loadScaffali(){
   setTimeout(function(){ scaffaliLoaded=true; FX.open(); if(view.name==='home') render(); }, 750);
 }
 
+function productRow(pl,r){
+  const p=PRODUCTS[pl.pid]; const dup=ripianiOf(pl.pid).length>1;
+  const row=document.createElement('div');row.className='pcard';
+  row.innerHTML='<div class="pcard-top"><div class="pinfo"><div class="nm">'+p.name+'</div><div class="cd">'+p.codes[0]+(p.codes[1]?' · EAN '+p.codes[1]:'')+'</div></div>'+
+    (dup?'<span class="role '+(pl.role==='prin'?'prin':'')+'">'+(pl.role==='prin'?'principale':'duplicato')+'</span>':'')+
+    '</div><div class="pcard-acts"></div>';
+  const acts=row.querySelector('.pcard-acts');
+  const br=document.createElement('button');br.className='b-rem';br.textContent='Togli';
+  br.onclick=()=>doRemove(pl.pid,r);
+  const bm=document.createElement('button');bm.className='b-move';bm.textContent='Sposta';
+  bm.onclick=()=>startMove(pl.pid,r);
+  acts.append(br,bm);   // Togli left, Sposta right
+  return row;
+}
+function ripianiDi(scaf){ return Object.keys(RIPIANI).filter(r=>RIPIANI[r]===scaf); }
+const openAcc=new Set();   // ripiani espansi nella vista scaffale
+
 function renderScaffale(m,scaf){
-  m.innerHTML='<div class="rhead"><div class="code">'+scaf+' <small>'+SCAFFALI[scaf]+'</small></div><div class="sub">Tocca un ripiano per vederne i prodotti</div></div><h2 class="sec">Ripiani</h2>';
-  Object.keys(RIPIANI).filter(r=>RIPIANI[r]===scaf).forEach(r=>{
-    const n=onRipiano(r).length;
-    const b=document.createElement('button');b.className='cardbtn';
-    b.innerHTML='<span class="ico rp">RP</span><div class="body"><div class="t1">'+r+'</div><div class="t2">'+(n>=20?'pieno':'ripiano')+'</div></div><div class="cnt"><b>'+n+'</b><span>prod.</span></div>';
-    b.onclick=()=>{ if(pendOp){ completePending(r); } else { FX.open(); openRipiano(r);} };
-    m.appendChild(b);
+  m.innerHTML='<div class="navbar"><button class="up" id="navUp">‹ Tutti gli scaffali</button></div>'+
+    '<div class="rhead"><div class="code">'+scaf+' <small>'+SCAFFALI[scaf]+'</small></div><div class="sub">'+
+    (pendOp?'Tocca il ripiano di destinazione':'Tocca un ripiano per aprirne l\u2019elenco · "Apri" per entrarci')+'</div></div><h2 class="sec">Ripiani</h2>';
+  $('navUp').onclick=()=>{ scaffaliLoaded=true; FX.nav(); go({name:'home'}); };
+  ripianiDi(scaf).forEach(r=>{
+    const items=onRipiano(r);
+    const acc=document.createElement('div');acc.className='acc'+(openAcc.has(r)?' open':'');
+    acc.innerHTML='<div class="acc-h"><button class="tog"><span class="ico rp" style="flex:0 0 auto;width:44px;height:44px;border-radius:11px;background:#b23a76;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px">RP</span>'+
+      '<div class="body" style="flex:1"><div class="t1" style="font-size:16px;font-weight:800">'+r+'</div><div class="t2" style="font-size:12px;color:var(--muted)">'+items.length+' prodotti'+(items.length>=20?' · pieno':'')+'</div></div>'+
+      '<span class="chev">›</span></button><button class="goto">Apri</button></div><div class="acc-b"></div>';
+    const body=acc.querySelector('.acc-b');
+    if(!items.length) body.innerHTML='<div class="emptybox">Ripiano vuoto.</div>';
+    else items.forEach(pl=>body.appendChild(productRow(pl,r)));
+    acc.querySelector('.tog').onclick=()=>{
+      if(pendOp){ completePending(r); return; }
+      if(openAcc.has(r)) openAcc.delete(r); else openAcc.add(r);
+      acc.classList.toggle('open',openAcc.has(r)); FX.nav();
+    };
+    acc.querySelector('.goto').onclick=()=>{ if(pendOp){ completePending(r); return; } FX.open(); openRipiano(r); };
+    m.appendChild(acc);
   });
 }
 
 function renderRipiano(m,r){
-  const scaf=RIPIANI[r];
-  m.innerHTML='<div class="rhead"><div class="code">'+r+' <small>scaffale '+scaf+'</small></div><div class="sub">'+SCAFFALI[scaf]+' · '+onRipiano(r).length+' prodotti</div></div>'+
+  const scaf=RIPIANI[r]; const sib=ripianiDi(scaf); const i=sib.indexOf(r);
+  const prev=i>0?sib[i-1]:null, next=i<sib.length-1?sib[i+1]:null;
+  m.innerHTML='<div class="navbar"><button class="up" id="navUp">‹ '+scaf+' · '+SCAFFALI[scaf]+'</button>'+
+    '<button id="navPrev" '+(prev?'':'disabled')+'>‹ '+(prev||'—')+'</button><button id="navNext" '+(next?'':'disabled')+'>'+(next||'—')+' ›</button></div>'+
+    '<div class="rhead"><div class="code">'+r+' <small>scaffale '+scaf+'</small></div><div class="sub">'+SCAFFALI[scaf]+' · ripiano '+(i+1)+' di '+sib.length+' · '+onRipiano(r).length+' prodotti</div></div>'+
     '<h2 class="sec">Prodotti su questo ripiano</h2>';
+  $('navUp').onclick=()=>{ FX.nav(); openAcc.add(r); go({name:'scaffale',code:scaf}); };
+  if(prev) $('navPrev').onclick=()=>{ FX.nav(); go({name:'ripiano',code:prev}); };
+  if(next) $('navNext').onclick=()=>{ FX.nav(); go({name:'ripiano',code:next}); };
   const items=onRipiano(r);
   if(!items.length){ m.insertAdjacentHTML('beforeend','<div class="emptybox">Ripiano vuoto.<br>Spara un prodotto per aggiungerlo qui.</div>'); return; }
-  items.forEach(pl=>{
-    const p=PRODUCTS[pl.pid]; const dup=ripianiOf(pl.pid).length>1;
-    const row=document.createElement('div');row.className='pcard';
-    row.innerHTML='<div class="pcard-top"><div class="pinfo"><div class="nm">'+p.name+'</div><div class="cd">'+p.codes[0]+(p.codes[1]?' · EAN '+p.codes[1]:'')+'</div></div>'+
-      (dup?'<span class="role '+(pl.role==='prin'?'prin':'')+'">'+(pl.role==='prin'?'principale':'duplicato')+'</span>':'')+
-      '</div><div class="pcard-acts"></div>';
-    const acts=row.querySelector('.pcard-acts');
-    const br=document.createElement('button');br.className='b-rem';br.textContent='Togli';
-    br.onclick=()=>doRemove(pl.pid,r);
-    const bm=document.createElement('button');bm.className='b-move';bm.textContent='Sposta';
-    bm.onclick=()=>startMove(pl.pid,r);
-    acts.append(br,bm);   // Togli left, Sposta right
-    m.appendChild(row);
-  });
+  items.forEach(pl=>m.appendChild(productRow(pl,r)));
 }
 
 /* =========================================================================
@@ -608,11 +648,11 @@ function openProductCard(code){
 /* =========================================================================
    MUTATIONS  (+ pending destination flow)
    ========================================================================= */
-function startMove(pid,from){ pendOp={op:'move',pid,from}; renderPending();
+function startMove(pid,from){ pendOp={op:'move',pid,from}; renderPending(); if(view.name==='scaffale') render();
   toast('Spara il ripiano di destinazione','move'); FX.nav(); }
-function startAdd(pid){ pendOp={op:'add',pid}; renderPending();
+function startAdd(pid){ pendOp={op:'add',pid}; renderPending(); if(view.name==='scaffale') render();
   toast('Spara il ripiano di destinazione','move'); FX.nav(); }
-function cancelPending(){ pendOp=null; renderPending(); }
+function cancelPending(){ pendOp=null; renderPending(); if(view.name==='scaffale') render(); }
 
 function completePending(dest){
   if(!RIPIANI[dest]){ FX.err(); toast('Ripiano '+dest+' inesistente','err'); return; }
@@ -657,13 +697,13 @@ $('btnUndo').onclick=()=>{
    DISPATCH
    ========================================================================= */
 function dispatch(raw){
-  const r=classify(raw); gunBlink();
+  const r=classify(raw); gunBlink(); const viewBefore=view;
   let out='';
   if(pendOp){
     if(r.type==='ripiano'){ out = RIPIANI[r.code] ? (pendOp.op==='add'?'aggiunto in '+r.code:'spostato in '+r.code) : 'ripiano inesistente'; completePending(r.code); }
     else if(r.type==='empty'){ return; }
     else { FX.err(); toast('Spara un ripiano di destinazione (o annulla)','err'); out='serve destinazione'; }
-    pushScanLog(r,out); return;
+    pushScanLog(r,out); if(view!==viewBefore) closeScan(); return;
   }
   switch(r.type){
     case 'scaffale': if(SCAFFALI[r.code]){FX.open();openScaffale(r.code);out='scaffale aperto';} else {openScaffale(r.code);out='sconosciuto';} break;
@@ -674,6 +714,7 @@ function dispatch(raw){
   }
   pushScanLog(r,out);
   updateUndo();
+  if(view!==viewBefore) closeScan();
 }
 function pushScanLog(r,out){
   const log=$('scanLog'); if(!log) return;
