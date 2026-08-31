@@ -179,6 +179,9 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
 .destbtn .r{font-size:16px;font-weight:800;color:var(--berry)}
 .destbtn .rr{font-size:12px;color:var(--muted)}
 .destbtn .go{margin-left:auto;font-size:13px;font-weight:700;color:var(--berry)}
+.sheet-foot{display:flex;gap:10px;margin-top:8px}
+.sheet-foot .close{flex:1;width:auto;border:1px solid var(--line);border-radius:12px;padding:13px;background:var(--card);color:var(--berry-ink)}
+.sheet-foot .rescan{flex:1.4;background:var(--berry);color:#fff;border:none;border-radius:12px;font-weight:800;font-size:15px;padding:13px}
 .plrow{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:8px}
 .plrow .plinfo .r{font-size:18px;font-weight:800;color:var(--berry)}
 .plrow .plinfo .rr{font-size:12px;color:var(--muted);margin-top:2px}
@@ -251,17 +254,6 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
 .cam-frame video{width:100%;height:100%;object-fit:cover}
 .cam-reticle{position:absolute;left:12%;right:12%;top:34%;bottom:34%;border:3px solid rgba(255,255,255,.85);border-radius:10px;
   box-shadow:0 0 0 2000px rgba(0,0,0,.25)}
-.cam-confirm{margin-top:10px;background:#fff;border:2px solid var(--berry);border-radius:13px;padding:12px 14px}
-.cam-confirm .cc-top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-.cam-confirm .cc-code{font-size:22px;font-weight:800;letter-spacing:.06em;color:var(--berry-ink);font-variant-numeric:tabular-nums}
-.cam-confirm .cc-name{font-size:15px;font-weight:700;color:var(--berry-ink);line-height:1.3}
-.cam-confirm .cc-action{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.4}
-.cam-confirm .cc-action.err{color:var(--err);font-weight:700}
-.cam-confirm .cc-btns{display:flex;gap:10px;margin-top:12px}
-.cam-confirm .cc-btns button{flex:1;padding:14px 8px;border-radius:12px;font-size:15px;font-weight:800;letter-spacing:.08em;border:2px solid var(--berry);cursor:pointer}
-.cam-confirm #ccOk{background:var(--berry);color:#fff}
-.cam-confirm #ccNo{background:#fff;color:var(--berry)}
-.cam-frame.paused video{filter:brightness(.45)}
 .scan-log-h{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:14px 2px 8px}
 .scan-log{display:flex;flex-direction:column}
 .scan-empty{color:var(--muted);font-size:13px;padding:8px 2px}
@@ -283,7 +275,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
   <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
   <button class="entra" id="btnEntra">ENTRA</button>
-  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v9</b></div>
+  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v10</b></div>
 </div>
 
 <header>
@@ -333,12 +325,6 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
     <div class="scan-pane hidden" id="paneCam">
       <div class="cam-frame"><video id="camVideo" playsinline muted></video><div class="cam-reticle"></div></div>
       <div class="scan-hint" id="camMsg">Inquadra il codice a barre nel riquadro.</div>
-      <div class="cam-confirm hidden" id="camConfirm">
-        <div class="cc-top"><span class="tag" id="ccTag">?</span><span class="cc-code" id="ccCode">—</span></div>
-        <div class="cc-name" id="ccName"></div>
-        <div class="cc-action" id="ccAction"></div>
-        <div class="cc-btns"><button id="ccNo" type="button">RIPETI</button><button id="ccOk" type="button">CONFERMA</button></div>
-      </div>
     </div>
     <div class="scan-log-h">LETTURE</div>
     <div class="scan-log" id="scanLog"><div class="scan-empty">Nessuna lettura ancora.</div></div>
@@ -602,15 +588,14 @@ function openProductCard(code){
   const sh=document.createElement('div');sh.className='sheet';wrap.appendChild(sh);
   const closeAll=()=>{wrap.remove();sheetClosed();};
   wrap.onclick=e=>{if(e.target===wrap)closeAll();};
-  sheetOpened();
 
   if(!pid){
     FX.err();
     sh.innerHTML='<div class="grip"></div><div class="pname">Prodotto sconosciuto</div>'+
       '<div class="pcode"><span>codice</span> '+code+'</div>'+
       '<div class="status unknown">Non presente in anagrafica. Da registrare a desktop (l\u2019app mobile non crea referenze).</div>'+
-      '<button class="close">Chiudi</button>';
-    sh.querySelector('.close').onclick=closeAll;
+      '<div class="sheet-foot"><button class="close">Chiudi</button><button class="rescan">⌖&nbsp; Scansiona</button></div>';
+    sh.querySelector('.close').onclick=closeAll; sh.querySelector('.rescan').onclick=()=>{closeAll();openScan();};
     document.body.appendChild(wrap); return;
   }
   const p=PRODUCTS[pid]; const places=ripianiOf(pid);
@@ -643,8 +628,9 @@ function openProductCard(code){
     if(!dup) html+='<button class="bigbtn move" data-move="'+places[0].r+'">Sposta — spara ripiano di destinazione</button>';
     html+='<button class="bigbtn ghost" data-addelse="1">Aggiungi anche in un altro ripiano… (duplicato)</button>';
   }
-  html+='<button class="close">Chiudi</button>';
+  html+='<div class="sheet-foot"><button class="close">Chiudi</button><button class="rescan">⌖&nbsp; Scansiona</button></div>';
   sh.innerHTML=html;
+  sh.querySelector('.rescan').onclick=()=>{closeAll();openScan();};
 
   sh.querySelectorAll('[data-goto]').forEach(b=>b.onclick=()=>{closeAll();FX.open();openRipiano(b.dataset.goto);});
   const hb=sh.querySelector('[data-here]'); if(hb)hb.onclick=()=>{closeAll();doAdd(pid,hb.dataset.here);};
@@ -728,6 +714,7 @@ function dispatch(raw){
   if(view!==viewBefore) closeScan();
 }
 function pushScanLog(r,out){
+  lastScan={type:r.type,code:r.code,out:out};
   const log=$('scanLog'); if(!log) return;
   const empty=log.querySelector('.scan-empty'); if(empty) empty.remove();
   const map={scaffale:['SC','tag-sc'],ripiano:['RP','tag-rp'],product:['PROD','tag-pr']};
@@ -752,7 +739,7 @@ function gunBlink(){const g=$('gunpill');g.classList.add('live');clearTimeout(gu
 
 /* ---- scan drawer: external HID reader (default) + phone camera ---- */
 let camStream=null, camTimer=null, camDet=null, camCanvas=null;
-let camPaused=false, camPrev='', camHits=0, camProposed='';
+let camPaused=false, camPrev='', camHits=0;
 const CAM_TICK=250, CAM_STABLE=2;              // 2 letture identiche consecutive (~0,5 s) prima di proporre
 const RET={l:.12,r:.12,t:.34,b:.34};           // deve coincidere con .cam-reticle in CSS
 function reticleROI(v){
@@ -763,43 +750,18 @@ function reticleROI(v){
   const w=Math.round((1-RET.l-RET.r)*W/sc), h=Math.round((1-RET.t-RET.b)*H/sc);
   return {x:Math.max(0,x),y:Math.max(0,y),w:Math.min(w,vw-x),h:Math.min(h,vh-y)};
 }
-function previewOf(raw){
-  const r=classify(raw), map={scaffale:['SC','tag-sc'],ripiano:['RP','tag-rp'],product:['PROD','tag-pr']};
-  const tag=map[r.type]||['?','tag-x']; let name='', action='', err=false;
-  if(pendOp){
-    const pn=PRODUCTS[pendOp.pid]?PRODUCTS[pendOp.pid].name:pendOp.pid;
-    if(r.type==='ripiano'){
-      if(RIPIANI[r.code]){ name='Ripiano '+r.code+' · '+SCAFFALI[RIPIANI[r.code]]; action=(pendOp.op==='add'?'AGGIUNGE ':'SPOSTA ')+pn+' in '+r.code; }
-      else { name='Ripiano inesistente'; err=true; action='Nessuna azione'; }
-    } else { name='Serve un ripiano di destinazione'; err=true; action='Il codice letto non è un ripiano'; }
-    return {r,tag,name,action,err};
-  }
-  switch(r.type){
-    case 'scaffale': if(SCAFFALI[r.code]){name='Scaffale '+SCAFFALI[r.code];action='Apre lo scaffale';} else {name='Scaffale sconosciuto';err=true;action='Apre una scheda vuota';} break;
-    case 'ripiano':  if(RIPIANI[r.code]){name='Ripiano '+r.code+' · '+SCAFFALI[RIPIANI[r.code]];action='Apre il ripiano';} else {name='Ripiano inesistente';err=true;action='Apre una scheda vuota';} break;
-    case 'product':  { const pid=resolve(r.code);
-      if(!pid){ name='Prodotto non in anagrafica'; err=true; action='Nessuna azione: si registra a desktop'; }
-      else { const rp=ripianiOf(pid); name=PRODUCTS[pid].name;
-        action = rp.length ? 'A scaffale su '+rp.map(x=>x.r+(x.role==='sub'?' (sub)':'')).join(' + ') : 'Non a scaffale → proporrà l\u2019aggiunta'; } } break;
-    case 'empty':    name='Lettura vuota'; err=true; break;
-    default:         name='Formato non valido'; err=true; action='Nessuna azione';
-  }
-  return {r,tag,name,action,err};
-}
-function proposeCam(raw){
-  camPaused=true; camProposed=raw; FX.nav();
-  const p=previewOf(raw);
-  $('ccTag').className='tag '+p.tag[1]; $('ccTag').textContent=p.tag[0];
-  $('ccCode').textContent=p.r.code||'—'; $('ccName').textContent=p.name;
-  const a=$('ccAction'); a.textContent=p.action; a.className='cc-action'+(p.err?' err':'');
-  $('camConfirm').classList.remove('hidden'); $('camMsg').textContent='Verifica e conferma, oppure ripeti la lettura.';
-  const f=document.querySelector('.cam-frame'); if(f) f.classList.add('paused');
-}
-function hideConfirm(){ $('camConfirm').classList.add('hidden'); const f=document.querySelector('.cam-frame'); if(f) f.classList.remove('paused'); }
-function resumeCam(){ hideConfirm(); camProposed=''; camPrev=''; camHits=0; $('camMsg').textContent='Inquadra il codice…'; setTimeout(function(){camPaused=false;},400); }
 function camPrompt(){ return pendOp ? 'Leggi il ripiano di destinazione' : 'Inquadra il codice…'; }
-function confirmCam(){ const raw=camProposed; if(!raw) return; hideConfirm(); dispatch(raw); camProposed=''; camPrev=''; camHits=0; $('camMsg').textContent=camPrompt(); setTimeout(function(){ if(!document.querySelector('.sheet-wrap')) camPaused=false; },700); }
-function sheetOpened(){ if(camTimer) camPaused=true; }
+function camRead(raw){
+  // lettura stabile: si va dritti al risultato. La fotocamera si spegne se qualcosa è successo
+  // (vista cambiata, scheda aperta, collocazione modificata); resta accesa se la lettura non ha prodotto nulla.
+  camPaused=true; camPrev=''; camHits=0;
+  const v0=view, a0=actions.length;
+  dispatch(raw);
+  const landed = view!==v0 || !!document.querySelector('.sheet-wrap') || actions.length!==a0;
+  if(landed){ if(camTimer) closeScan(); return; }
+  $('camMsg').textContent=(lastScan&&lastScan.out?raw+': '+lastScan.out+' — ':'')+'riprova';
+  setTimeout(function(){camPaused=false;},900);
+}
 function sheetClosed(){ if(!camTimer) return; camPrev=''; camHits=0; $('camMsg').textContent=camPrompt(); setTimeout(function(){camPaused=false;},400); }
 function camSupported(){ return !!(window.isSecureContext && ('BarcodeDetector' in window) && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
 let scanPref=null;   // ultima tab scelta a mano dall'operatore in questa sessione
@@ -824,8 +786,8 @@ function startCamera(){
   try{ camDet=new BarcodeDetector({formats:['code_128','ean_13','ean_8','qr_code','data_matrix']}); }
   catch(e){ msg.textContent='Formati non supportati dalla fotocamera: usa il lettore esterno.'; return; }
   navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(st){
-    camStream=st; v.srcObject=st; try{v.play();}catch(e){} msg.textContent='Inquadra il codice…';
-    camPaused=false; camPrev=''; camHits=0; hideConfirm();
+    camStream=st; v.srcObject=st; try{v.play();}catch(e){} msg.textContent=camPrompt();
+    camPaused=false; camPrev=''; camHits=0;
     camTimer=setInterval(function(){
       if(!camDet||camPaused||v.readyState<2) return;
       const roi=reticleROI(v); if(!roi) return;
@@ -837,7 +799,7 @@ function startCamera(){
         if(!codes||!codes.length){ camPrev=''; camHits=0; return; }
         const raw=codes[0].rawValue; if(!raw) return;
         if(raw===camPrev){ camHits++; } else { camPrev=raw; camHits=1; }
-        if(camHits>=CAM_STABLE) proposeCam(raw);
+        if(camHits>=CAM_STABLE) camRead(raw);
       }).catch(function(){});
     },CAM_TICK);
   }).catch(function(err){
@@ -848,13 +810,11 @@ function startCamera(){
     else msg.textContent='Impossibile avviare la fotocamera ('+(n||'errore')+'). Usa il lettore esterno.';
   });
 }
-function stopCamera(){ hideConfirm(); camPaused=false; camProposed=''; if(camTimer){clearInterval(camTimer);camTimer=null;} if(camStream){camStream.getTracks().forEach(function(t){t.stop();});camStream=null;} camDet=null; }
+function stopCamera(){ camPaused=false; if(camTimer){clearInterval(camTimer);camTimer=null;} if(camStream){camStream.getTracks().forEach(function(t){t.stop();});camStream=null;} camDet=null; }
 
 $('btnBack').onclick=back;
 $('btnHome').onclick=goHome;
 $('pendingCancel').onclick=cancelPending;
-$('ccOk').onclick=confirmCam;
-$('ccNo').onclick=resumeCam;
 $('btnScan').onclick=openScan;
 $('scanClose').onclick=closeScan;
 $('scanScrim').onclick=closeScan;
