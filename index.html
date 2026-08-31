@@ -103,6 +103,7 @@ main.home{display:flex;flex-direction:column}
 .tool .ico svg{width:34px;height:34px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .tool .lbl{flex:1;min-width:0;font-size:14px;font-weight:800;line-height:1.2}
 .tool .lbl small{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-top:3px;line-height:1.3}
+.tool.c-del .ico{background:var(--err)}
 .tool.c-new .ico{background:var(--berry)} .tool.c-struct .ico{background:var(--move)} .tool.c-empty .ico{background:var(--dup)} .tool.c-reset .ico{background:#6b6b6b}
 h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:2px 4px 10px}
 
@@ -323,7 +324,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
   <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
   <button class="entra" id="btnEntra">ENTRA</button>
-  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v24</b></div>
+  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v25</b></div>
   <div class="pv" id="gateData">dati: caricamento…</div>
 </div>
 
@@ -553,6 +554,8 @@ let actions=[];              // undo log
 let scaffaliLoaded=false;    // scaffali fetched from backend?
 let lastScan=null;           // {type,code,out} for the scan console
 let batch=null;              // {mode:'add'|'rem'|'move', r, to, n, last}
+const ART={ripiano:{del:'del ripiano',un:'un ripiano'},scaffale:{del:'dello scaffale',un:'uno scaffale'}};
+let pendDel=null;            // {kind:'ripiano'|'scaffale'}: la prossima etichetta letta è quella da eliminare
 let lastOp=null;             // ultima operazione singola: {kind, r, to, name} → offerta 'continua in serie'
 
 function go(v,push=true){ if(push && view) stack.push(view); view=v; render(); }
@@ -579,6 +582,7 @@ function renderCrumb(){
 }
 function renderPending(){
   const el=$('pending');
+  if(pendDel){ el.classList.remove('hidden'); $('pendingTx').innerHTML='<b>Elimina '+pendDel.kind+'</b> — leggi l\u2019etichetta '+ART[pendDel.kind].del+' da eliminare'; return; }
   if(!pendOp){el.classList.add('hidden');return;}
   el.classList.remove('hidden');
   const nm=PRODUCTS[pendOp.pid].name;
@@ -746,7 +750,9 @@ const ICONS={
   newShelf:'<svg viewBox="0 0 24 24"><path d="M4 4h16M4 11h16M4 18h16M6 4v16M18 4v16"/><circle cx="19" cy="17" r="4.5" fill="var(--berry)"/><path d="M19 14.8v4.4M16.8 17h4.4"/></svg>',
   struct:'<svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h18M3 19h18"/><path d="M6 8.5v2M9 8.5v2M12 8.5v2M15 8.5v2M18 8.5v2"/><path d="M6 15.5v2M9 15.5v2M12 15.5v2M15 15.5v2M18 15.5v2"/></svg>',
   empty:'<svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="7" height="12" rx="1.5"/><rect x="14.5" y="6" width="7" height="12" rx="1.5"/><path d="M10.5 12h3M11.5 10l2 2-2 2"/><path d="M4.5 9h3M4.5 12h3M4.5 15h3"/></svg>',
-  reset:'<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>'
+  reset:'<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>',
+  delRip:'<svg viewBox="0 0 24 24"><path d="M3 8h18M3 16h18"/><path d="M6 10.5v3M9 10.5v3M12 10.5v3"/><circle cx="18" cy="12" r="4.5" fill="var(--err)"/><path d="M16.4 10.4l3.2 3.2M19.6 10.4l-3.2 3.2"/></svg>',
+  delShelf:'<svg viewBox="0 0 24 24"><path d="M4 4h12M4 11h12M4 18h12M6 4v16M14 4v10"/><circle cx="18.5" cy="17" r="4.5" fill="var(--err)"/><path d="M16.9 15.4l3.2 3.2M20.1 15.4l-3.2 3.2"/></svg>'
 };
 function toolsSection(){
   const wrap=document.createElement('div');wrap.className='tools';
@@ -761,12 +767,16 @@ function openTools(){
     '<button class="tool c-new" data-t="new"><span class="ico">'+ICONS.newShelf+'</span><span class="lbl">Nuovo scaffale<small>codice + nome</small></span></button>'+
     '<button class="tool c-struct" data-t="struct"><span class="ico">'+ICONS.struct+'</span><span class="lbl">Scaffali e ripiani in serie<small>leggi scaffale, poi i ripiani</small></span></button>'+
     '<button class="tool c-empty" data-t="empty"><span class="ico">'+ICONS.empty+'</span><span class="lbl">Svuota ripiani<small>tutto da un ripiano all\u2019altro</small></span></button>'+
+    '<button class="tool c-del" data-t="delrip"><span class="ico">'+ICONS.delRip+'</span><span class="lbl">Elimina ripiano<small>due conferme · etichetta bruciata</small></span></button>'+
+    '<button class="tool c-del" data-t="delshelf"><span class="ico">'+ICONS.delShelf+'</span><span class="lbl">Elimina scaffale<small>due conferme · etichette bruciate</small></span></button>'+
     '<button class="tool c-reset" data-t="reset"><span class="ico">'+ICONS.reset+'</span><span class="lbl">Ripristina<small>azzera tutto</small></span></button></div>'+
     '<div class="sheet-foot"><button class="close">Chiudi</button></div>';
   sh.querySelector('[data-t="new"]').onclick=()=>{closeAll();openNewScaffale('');};
   sh.querySelector('[data-t="struct"]').onclick=()=>{closeAll();startBatch('struct',null);};
   sh.querySelector('[data-t="empty"]').onclick=()=>{closeAll();startBatch('movecont',null);};
   sh.querySelector('[data-t="reset"]').onclick=()=>{closeAll();openReset();};
+  sh.querySelector('[data-t="delrip"]').onclick=()=>{closeAll();openDeleteChooser('ripiano');};
+  sh.querySelector('[data-t="delshelf"]').onclick=()=>{closeAll();openDeleteChooser('scaffale');};
   sh.querySelector('.close').onclick=closeAll;
   document.body.appendChild(wrap);
 }
@@ -785,10 +795,8 @@ function openMenu(kind,code){
     items.push(['⌖ Ordina leggendo',()=>startBatch('struct',code),'Leggi le etichette dei ripiani dall\u2019alto in basso. Nuovi: creati. Di altri scaffali: spostati qui.']);
     items.push(['⠿ Ordina a mano',()=>{ reorderScaf=code; FX.nav(); render(); }]);
     items.push(['✎ Rinomina scaffale',()=>openRenameScaffale(code)]);
-    items.push(['✕ Elimina scaffale',()=>openDeleteScaffale(code),'Le etichette dello scaffale e dei ripiani vengono bruciate.',true]);
   } else {
     items.push(['⇉ Svuota in un altro ripiano…',()=>startBatch('movecont',code),'Leggi solo il ripiano di destinazione: tutto il contenuto di '+code+' passa lì.']);
-    items.push(['✕ Elimina ripiano',()=>openDeleteRipiano(code),'L\u2019etichetta viene bruciata.',true]);
   }
   const title={home:'Struttura e strumenti',scaffale:'Scaffale '+code,ripiano:'Ripiano '+code}[kind];
   sh.innerHTML='<div class="grip"></div><div class="pname">'+title+'</div><div class="pcat">Attività non quotidiane</div>'+
@@ -808,6 +816,36 @@ function openRenameScaffale(scaf){
   sh.querySelector('#rnGo').onclick=()=>{ const n=sh.querySelector('#rnName').value.trim(); if(!n){FX.err();toast('Il nome non può essere vuoto','err');return;} SCAFFALI[scaf]=n; FX.add(); toast('Rinominato: '+n,'add'); closeAll(); render(); };
   document.body.appendChild(wrap); try{ const f=sh.querySelector('#rnName'); f.focus(); f.select(); }catch(e){}
 }
+function openDeleteChooser(kind){
+  const wrap=document.createElement('div');wrap.className='sheet-wrap';
+  const sh=document.createElement('div');sh.className='sheet';wrap.appendChild(sh);
+  const closeAll=()=>wrap.remove(); wrap.onclick=e=>{if(e.target===wrap)closeAll();};
+  let opts='';
+  if(kind==='ripiano') Object.keys(SCAFFALI).forEach(sc=>ripianiDi(sc).forEach(r=>{ opts+='<option value="'+r+'">'+r+' · '+SCAFFALI[sc]+' · '+onRipiano(r).length+' prod.</option>'; }));
+  else Object.keys(SCAFFALI).forEach(sc=>{ opts+='<option value="'+sc+'">'+sc+' · '+SCAFFALI[sc]+' · '+ripianiDi(sc).length+' ripiani</option>'; });
+  sh.innerHTML='<div class="grip"></div><div class="pname">Elimina '+kind+'</div>'+
+    '<div class="status unplaced">Scegli il '+kind+' dall\u2019elenco, oppure leggine l\u2019etichetta. Seguono due conferme.</div>'+
+    (opts?'<h4>Dall\u2019elenco</h4><select class="fld" id="delSel">'+opts+'</select><button class="bigbtn ghost" id="delPick">Continua con il '+kind+' scelto</button>':'<div class="emptybox">Nessun '+kind+'.</div>')+
+    '<h4>Oppure</h4><button class="bigbtn add" id="delScan">⌖&nbsp; Leggi l\u2019etichetta '+ART[kind].del+'</button>'+
+    '<div class="sheet-foot"><button class="close">Chiudi</button></div>';
+  sh.querySelector('.close').onclick=closeAll;
+  const pick=sh.querySelector('#delPick'); if(pick) pick.onclick=()=>{ const c=sh.querySelector('#delSel').value; closeAll(); if(kind==='ripiano') openDeleteRipiano(c); else openDeleteScaffale(c); };
+  sh.querySelector('#delScan').onclick=()=>{ closeAll(); pendDel={kind}; pendOp=null; renderPending(); openScan(); };
+  document.body.appendChild(wrap);
+}
+function confirmBurn(codes,label,onYes){   // seconda conferma: le etichette vengono bruciate
+  const wrap=document.createElement('div');wrap.className='sheet-wrap';
+  const sh=document.createElement('div');sh.className='sheet';wrap.appendChild(sh);
+  const closeAll=()=>wrap.remove(); wrap.onclick=e=>{if(e.target===wrap)closeAll();};
+  sh.innerHTML='<div class="grip"></div><div class="pname">Seconda conferma</div>'+
+    '<div class="status unknown">'+(codes.length===1?'L\u2019etichetta <b>'+codes[0]+'</b> verrà <b>bruciata</b>':'Le etichette <b>'+codes.join(', ')+'</b> verranno <b>bruciate</b>')+
+    (codes.length===1?': non potrà più essere letta né ricreata':': non potranno più essere lette né ricreate')+', né qui né altrove. Se in futuro serviranno, andranno stampate etichette con codici nuovi. Non annullabile.</div>'+
+    '<button class="bigbtn" id="burnGo" style="background:var(--err);color:#fff">'+label+'</button>'+
+    '<div class="sheet-foot"><button class="close">Annulla</button></div>';
+  sh.querySelector('.close').onclick=closeAll;
+  sh.querySelector('#burnGo').onclick=()=>{ closeAll(); onYes(); };
+  document.body.appendChild(wrap);
+}
 function deleteRipianoData(r){
   for(let i=PLC.length-1;i>=0;i--) if(PLC[i].r===r) PLC.splice(i,1);
   const sc=RIPIANI[r]; if(sc&&ORD[sc]){ const k=ORD[sc].indexOf(r); if(k>=0) ORD[sc].splice(k,1); }
@@ -822,11 +860,11 @@ function openDeleteRipiano(r){
   const closeAll=()=>wrap.remove(); wrap.onclick=e=>{if(e.target===wrap)closeAll();};
   sh.innerHTML='<div class="grip"></div><div class="pname">Elimina ripiano '+r+'</div><div class="pcat">scaffale '+scaf+' · '+SCAFFALI[scaf]+'</div>'+
     '<div class="status unknown">'+(n?'Ha <b>'+n+' prodotti</b>: restano in anagrafica ma <b>perdono la posizione</b>. Per conservarla, prima <b>Svuota in un altro ripiano</b>. ':'Il ripiano è vuoto. ')+
-    'L\u2019etichetta <b>'+r+'</b> viene <b>bruciata</b>: non sarà più letta né ricreabile, né qui né altrove. Non annullabile con ↶.</div>'+
-    '<button class="bigbtn" id="delGo" style="background:var(--err);color:#fff">Elimina ripiano '+r+(n?' e '+n+' collocazioni':'')+'</button>'+
+    'Prima conferma di due.</div>'+
+    '<button class="bigbtn" id="delGo" style="background:var(--err);color:#fff">Continua: elimina '+r+(n?' e '+n+' collocazioni':'')+'</button>'+
     '<div class="sheet-foot"><button class="close">Chiudi</button></div>';
   sh.querySelector('.close').onclick=closeAll;
-  sh.querySelector('#delGo').onclick=()=>{ deleteRipianoData(r); updateUndo(); FX.rem(); toast('Eliminato '+r+' · etichetta bruciata','err'); closeAll(); go({name:'scaffale',code:scaf}); };
+  sh.querySelector('#delGo').onclick=()=>{ closeAll(); confirmBurn([r],'Elimina definitivamente '+r,()=>{ deleteRipianoData(r); updateUndo(); FX.rem(); toast('Eliminato '+r+' · etichetta bruciata','err'); go({name:'scaffale',code:scaf}); }); };
   document.body.appendChild(wrap);
 }
 function openDeleteScaffale(scaf){
@@ -837,15 +875,15 @@ function openDeleteScaffale(scaf){
   sh.innerHTML='<div class="grip"></div><div class="pname">Elimina '+scaf+' · '+SCAFFALI[scaf]+'</div>'+
     '<div class="status '+(nPl?'unknown':'unplaced')+'">'+(rips.length?'Ha <b>'+rips.length+' ripiani</b> e <b>'+nPl+' collocazioni</b>. ':'Non ha ripiani. ')+
     (nPl?'Eliminando, i '+nPl+' prodotti restano in anagrafica ma <b>perdono la posizione</b>. Se vuoi conservarla, prima sposta il contenuto dei ripiani altrove.':'Ripiani ed etichette non saranno più riconosciuti.')+
-    ' Le etichette <b>'+scaf+'</b>'+(rips.length?' e dei suoi '+rips.length+' ripiani':'')+' vengono <b>bruciate</b>: non saranno più lette né ricreabili. Non annullabile con ↶.</div>'+
-    '<button class="bigbtn" id="delGo" style="background:var(--err);color:#fff">Elimina scaffale'+(rips.length?', '+rips.length+' ripiani':'')+(nPl?' e '+nPl+' collocazioni':'')+'</button>'+
+    ' Prima conferma di due.</div>'+
+    '<button class="bigbtn" id="delGo" style="background:var(--err);color:#fff">Continua: elimina scaffale'+(rips.length?', '+rips.length+' ripiani':'')+(nPl?' e '+nPl+' collocazioni':'')+'</button>'+
     '<div class="sheet-foot"><button class="close">Chiudi</button></div>';
   sh.querySelector('.close').onclick=closeAll;
-  sh.querySelector('#delGo').onclick=()=>{
+  sh.querySelector('#delGo').onclick=()=>{ closeAll(); confirmBurn([scaf].concat(rips),'Elimina definitivamente '+scaf,()=>{
     rips.forEach(deleteRipianoData); delete ORD[scaf]; delete SCAFFALI[scaf]; BURNED.add(scaf);
     updateUndo(); if(reorderScaf===scaf) reorderScaf=null;
-    FX.rem(); toast('Eliminato '+scaf+' · etichette bruciate','err'); closeAll(); scaffaliLoaded=true; goHome();
-  };
+    FX.rem(); toast('Eliminato '+scaf+' · etichette bruciate','err'); scaffaliLoaded=true; goHome();
+  }); };
   document.body.appendChild(wrap);
 }
 let reorderScaf=null;
@@ -1172,7 +1210,7 @@ function startMove(pid,from){ pendOp={op:'move',pid,from}; renderPending(); if(v
   toast('Leggi il ripiano di destinazione','move'); FX.nav(); }
 function startAdd(pid){ pendOp={op:'add',pid}; renderPending(); if(view.name==='scaffale') render();
   toast('Leggi il ripiano di destinazione','move'); FX.nav(); }
-function cancelPending(){ pendOp=null; renderPending(); if(view.name==='scaffale') render(); }
+function cancelPending(){ pendOp=null; pendDel=null; renderPending(); if(view.name==='scaffale') render(); }
 
 function completePending(dest){
   if(!RIPIANI[dest]){ FX.err(); toast('Ripiano '+dest+' inesistente','err'); return; }
@@ -1246,6 +1284,15 @@ function dispatch(raw){
   if(batch){ gunBlink(); batchRead(raw); return; }
   const r=classify(raw); gunBlink(); const viewBefore=view;
   let out='';
+  if(pendDel){
+    if(r.type==='empty') return;
+    const k=pendDel.kind;
+    if(r.type!==k){ FX.err(); toast('Leggi l\u2019etichetta di '+ART[k].un+' (o annulla)','err'); pushScanLog(r,'serve '+k); return; }
+    if(isBurned(r.code)){ burnedToast(r.code); pushScanLog(r,'eliminato'); return; }
+    if((k==='ripiano'&&!RIPIANI[r.code])||(k==='scaffale'&&!SCAFFALI[r.code])){ FX.err(); toast(k+' '+r.code+' inesistente','err'); pushScanLog(r,'inesistente'); return; }
+    pendDel=null; renderPending(); closeScan(); pushScanLog(r,'da eliminare');
+    if(k==='ripiano') openDeleteRipiano(r.code); else openDeleteScaffale(r.code); return;
+  }
   if(pendOp){
     if(r.type==='ripiano'&&isBurned(r.code)){ burnedToast(r.code); out='eliminato'; }
     else if(r.type==='ripiano'){ out = RIPIANI[r.code] ? (pendOp.op==='add'?'aggiunto in '+r.code:'spostato in '+r.code) : 'ripiano inesistente'; completePending(r.code); }
@@ -1301,7 +1348,7 @@ function reticleROI(v){
   const w=Math.round((1-RET.l-RET.r)*W/sc), h=Math.round((1-RET.t-RET.b)*H/sc);
   return {x:Math.max(0,x),y:Math.max(0,y),w:Math.min(w,vw-x),h:Math.min(h,vh-y)};
 }
-function camPrompt(){ if(batch&&batch.mode==='movecont') return batch.r ? 'Leggi il ripiano di destinazione' : 'Leggi il ripiano di partenza'; if(batch&&batch.mode==='struct') return batch.r ? 'Leggi i ripiani di '+batch.r+' dall\u2019alto in basso' : 'Leggi uno scaffale'; if(batch) return batch.mode!=='move' ? 'Leggi i prodotti uno dopo l\u2019altro' : (batch.items.length ? 'Altri prodotti, o il ripiano di destinazione' : 'Leggi i prodotti da spostare'); return pendOp ? 'Leggi il ripiano di destinazione' : 'Inquadra il codice…'; }
+function camPrompt(){ if(pendDel) return 'Leggi l\u2019etichetta '+ART[pendDel.kind].del+' da eliminare'; if(batch&&batch.mode==='movecont') return batch.r ? 'Leggi il ripiano di destinazione' : 'Leggi il ripiano di partenza'; if(batch&&batch.mode==='struct') return batch.r ? 'Leggi i ripiani di '+batch.r+' dall\u2019alto in basso' : 'Leggi uno scaffale'; if(batch) return batch.mode!=='move' ? 'Leggi i prodotti uno dopo l\u2019altro' : (batch.items.length ? 'Altri prodotti, o il ripiano di destinazione' : 'Leggi i prodotti da spostare'); return pendOp ? 'Leggi il ripiano di destinazione' : 'Inquadra il codice…'; }
 let camLastRaw='', camLastT=0;
 function camRead(raw){
   if(batch){
