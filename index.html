@@ -249,9 +249,22 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
 .batchbar .bb-tx{flex:1;min-width:0}
 .batchbar b{display:block;font-size:14px;letter-spacing:.05em}
 .batchbar span{display:block;font-size:12px;opacity:.9;line-height:1.35;margin-top:2px}
+.batchbar .bb-last{background:rgba(255,255,255,.14);border-radius:7px;padding:4px 8px;margin-top:6px;opacity:1;font-weight:700}
+.batchbar .bb-last:empty{display:none}
 .batchbar button{flex:0 0 auto;border:none;border-radius:9px;padding:9px 12px;font-weight:800;font-size:13px}
 .batchbar #bbEnd{background:#fff;color:var(--berry-ink)}
 .batchbar #bbUndo{background:rgba(255,255,255,.18);color:#fff;font-size:16px;padding:7px 11px}
+.bigbtn .sub{display:block;font-size:11.5px;font-weight:600;opacity:.75;margin-top:3px;letter-spacing:0;text-transform:none}
+.fld{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:11px;padding:12px;font-size:16px;font-weight:700;background:#fff;color:var(--berry-ink);margin-bottom:4px}
+.ordrow{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:13px;padding:10px 10px 10px 6px;margin-bottom:8px;user-select:none}
+.ordrow.drag{opacity:.75;box-shadow:0 8px 24px rgba(0,0,0,.18);border-color:var(--berry)}
+.ordrow .handle{touch-action:none;cursor:grab;font-size:22px;color:var(--muted);padding:6px 10px}
+.ordrow .body{flex:1;min-width:0}
+.ordrow .t1{font-size:16px;font-weight:800} .ordrow .t2{font-size:12px;color:var(--muted)}
+.ordrow .pos{font-size:12px;font-weight:800;color:var(--berry);background:#efe7eb;border-radius:8px;padding:4px 8px}
+.ordrow .mv{border:1px solid var(--line);background:#fff;border-radius:9px;width:38px;height:38px;font-size:14px;color:var(--berry-ink)}
+.ordrow .mv:disabled{opacity:.3}
+.batchrow.struct button{font-size:12px}
 .batchrow{display:flex;gap:8px;margin:-4px 0 12px}
 .batchrow button{flex:1;border:1px solid var(--line);background:var(--card);border-radius:11px;padding:10px 4px;font-weight:700;font-size:12.5px;color:var(--berry-ink)}
 .batchrow button.add{color:var(--add)} .batchrow button.rem{color:var(--err)} .batchrow button.move{color:var(--move)}
@@ -293,7 +306,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
   <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
   <button class="entra" id="btnEntra">ENTRA</button>
-  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v16</b></div>
+  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v21</b></div>
   <div class="pv" id="gateData">dati: caricamento…</div>
 </div>
 
@@ -333,14 +346,14 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
       <div class="scan-title">Scansione</div>
       <button class="scan-close" id="scanClose">Chiudi</button>
     </div>
-    <div class="batchbar hidden" id="batchBar"><div class="bb-tx"><b id="bbTitle"></b><span id="bbSub"></span></div><button id="bbUndo" title="Annulla ultima">↶</button><button id="bbEnd">Fine</button></div>
+    <div class="batchbar hidden" id="batchBar"><div class="bb-tx"><b id="bbTitle"></b><span id="bbSub"></span><span id="bbLast" class="bb-last"></span></div><button id="bbUndo" title="Annulla ultima">↶</button><button id="bbEnd">Fine</button></div>
     <div class="scan-tabs">
       <button class="scan-tab active" id="tabCam" data-tab="cam">Fotocamera</button>
       <button class="scan-tab" id="tabHid" data-tab="hid">Lettore esterno</button>
     </div>
     <div class="scan-pane" id="paneHid">
-      <input id="scanIn" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Spara — il codice appare qui">
-      <div class="scan-hint">Tieni aperta questa schermata e spara: ogni codice viene letto e instradato. Il lettore USB-C si comporta come una tastiera.</div>
+      <input id="scanIn" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Leggi un codice: appare qui">
+      <div class="scan-hint">Tieni aperta questa schermata e leggi: ogni codice viene instradato. Il lettore USB-C si comporta come una tastiera.</div>
     </div>
     <div class="scan-pane hidden" id="paneCam">
       <div class="cam-frame"><video id="camVideo" playsinline muted></video><div class="cam-reticle"></div></div>
@@ -507,7 +520,8 @@ const FX={
   err:  ()=>{tone([{f:150,d:.22,type:'square',g:.22}]);buzz([120,60,120]);}
 };
 let toastTO=null;
-function toast(msg,kind){const t=document.getElementById('toast');t.className='';t.classList.add('show');
+function toast(msg,kind){if(batch){batch.last=msg;const l=document.getElementById('bbLast');if(l)l.textContent='Ultimo: '+msg;}
+  const t=document.getElementById('toast');t.className='';t.classList.add('show');
   if(kind)t.classList.add(kind);t.textContent=msg;clearTimeout(toastTO);toastTO=setTimeout(()=>t.classList.remove('show'),1700);}
 
 /* =========================================================================
@@ -535,7 +549,7 @@ function render(){
   renderCrumb(); renderPending();
   const m=$('main'); m.scrollTop=0;
   if(view.name==='home') return renderHome(m);
-  if(view.name==='scaffale') return renderScaffale(m,view.code);
+  if(view.name==='scaffale') return (reorderScaf===view.code) ? renderReorder(m,view.code) : renderScaffale(m,view.code);
   if(view.name==='ripiano') return renderRipiano(m,view.code);
 }
 function renderCrumb(){
@@ -552,17 +566,18 @@ function renderPending(){
   el.classList.remove('hidden');
   const nm=PRODUCTS[pendOp.pid].name;
   $('pendingTx').innerHTML = (pendOp.op==='move'
-    ? 'Sposta <b>'+nm+'</b> — spara il ripiano di <b>destinazione</b>'
-    : 'Aggiungi <b>'+nm+'</b> — spara il ripiano di <b>destinazione</b>');
+    ? 'Sposta <b>'+nm+'</b> — leggi il ripiano di <b>destinazione</b>'
+    : 'Aggiungi <b>'+nm+'</b> — leggi il ripiano di <b>destinazione</b>');
 }
 
 function renderHome(m){
   m.innerHTML='';
   const scan=document.createElement('button');scan.className='home-cta primary';
-  scan.innerHTML='<span class="big">⌖&nbsp; Spara per iniziare</span>';
+  scan.innerHTML='<span class="big">⌖&nbsp; Scansiona per iniziare</span>';
   scan.onclick=openScan;
   m.appendChild(scan);
 
+  const mo=document.createElement('button');mo.className='home-cta secondary';mo.innerHTML='⋯&nbsp; Struttura e strumenti';mo.onclick=()=>openMenu('home');
   if(!scaffaliLoaded){
     const f=document.createElement('button');f.className='home-cta secondary';f.id='btnFetch';
     f.innerHTML='↻&nbsp; Recupera elenco scaffali';
@@ -570,6 +585,7 @@ function renderHome(m){
     m.appendChild(f);
   } else {
     const h=document.createElement('h2');h.className='sec';h.textContent='Scaffali';h.style.marginTop='6px';m.appendChild(h);
+    if(!Object.keys(SCAFFALI).length) m.insertAdjacentHTML('beforeend','<div class="emptybox">Nessuno scaffale. Con <b>Scaffali e ripiani in serie</b> leggi l\u2019etichetta di uno scaffale e poi i suoi ripiani dall\u2019alto in basso; ripeti per il prossimo scaffale.</div>');
     Object.keys(SCAFFALI).forEach(s=>{
       const nr=Object.keys(RIPIANI).filter(r=>RIPIANI[r]===s).length;
       const b=document.createElement('button');b.className='cardbtn';
@@ -578,6 +594,7 @@ function renderHome(m){
       m.appendChild(b);
     });
   }
+  m.appendChild(mo);
   const pend=Object.keys(PRODUCTS).filter(k=>PRODUCTS[k].src==='pending').length;
   const parked=Object.keys(PRODUCTS).filter(k=>PRODUCTS[k].src==='park').length;
   if(pend){
@@ -600,6 +617,32 @@ function renderHome(m){
     });
   }
 }
+function emptyAll(){
+  [SCAFFALI,RIPIANI,ORD,PRODUCTS,CODE2ID].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));
+  PLC.length=0; actions.length=0; openAcc.clear(); pendOp=null; batch=null; lastOp=null; reorderScaf=null; scaffaliLoaded=true; DATI_SRC='vuoto';
+  updateBatchBar(); closeScan(); const g=$('gateData'); if(g) g.textContent='dati: struttura vuota';
+  goHome(); updateUndo(); toast('Struttura vuota: nessuno scaffale, ripiano o prodotto','err');
+}
+function openReset(){
+  const wrap=document.createElement('div');wrap.className='sheet-wrap';
+  const sh=document.createElement('div');sh.className='sheet';wrap.appendChild(sh);
+  const closeAll=()=>wrap.remove(); wrap.onclick=e=>{if(e.target===wrap)closeAll();};
+  sh.innerHTML='<div class="grip"></div><div class="pname">Ripristina</div>'+
+    '<div class="status unplaced">Le modifiche fatte sul telefono vivono solo in questa sessione. Scegli da dove ripartire.</div>'+
+    '<button class="bigbtn add" id="rsData">Ricarica i dati iniziali (dati.xlsx / demo)</button>'+
+    '<button class="bigbtn ghost" id="rsTools" style="font-size:13px">Strumenti di prova…</button>'+
+    '<button class="bigbtn ghost hidden" id="rsEmpty" style="border-color:var(--err);color:var(--err)">Struttura vuota — zero scaffali, ripiani e prodotti</button>'+
+    '<div class="sheet-foot"><button class="close">Chiudi</button></div>';
+  sh.querySelector('.close').onclick=closeAll;
+  sh.querySelector('#rsData').onclick=()=>{ if(confirm('Ricaricare i dati iniziali? Il lavoro di questa sessione va perso.')) location.reload(); };
+  sh.querySelector('#rsTools').onclick=()=>{ sh.querySelector('#rsEmpty').classList.remove('hidden'); sh.querySelector('#rsTools').classList.add('hidden'); };
+  sh.querySelector('#rsEmpty').onclick=()=>{ if(confirm('Svuotare TUTTO (scaffali, ripiani, prodotti, collocazioni)? Serve solo per provare da zero.')){ closeAll(); emptyAll(); } };
+  document.body.appendChild(wrap);
+}
+function appendReset(m){
+  const rs=document.createElement('button');rs.className='home-cta secondary';rs.style.cssText='margin-top:18px;color:var(--muted);font-size:14px';
+  rs.textContent='↻  Ripristina…'; rs.onclick=openReset; m.appendChild(rs);
+}
 function loadScaffali(){
   const f=$('btnFetch'); if(f){ f.disabled=true; f.innerHTML='<span class="spin berry"></span>&nbsp; Recupero elenco…'; }
   FX.nav();
@@ -621,8 +664,155 @@ function productRow(pl,r){
   acts.append(br,bm);   // Togli left, Sposta right
   return row;
 }
-function ripianiDi(scaf){ return Object.keys(RIPIANI).filter(r=>RIPIANI[r]===scaf); }
+function ripianiDi(scaf){ return (ORD[scaf]||[]).slice(); }
 const openAcc=new Set();   // ripiani espansi nella vista scaffale
+/* =========================================================================
+   STRUTTURA: scaffali, ripiani, ordine dei ripiani (creazione da mobile)
+   ========================================================================= */
+const ORD = {};   // scaffale -> [ripiano, ...] nell'ordine fisico (alto → basso)
+function linkRipiano(r,scaf,pos){
+  const old=RIPIANI[r]; if(old&&ORD[old]){ const i=ORD[old].indexOf(r); if(i>=0) ORD[old].splice(i,1); }
+  RIPIANI[r]=scaf; ORD[scaf]=ORD[scaf]||[];
+  if(ORD[scaf].indexOf(r)<0){ if(pos==null||pos>=ORD[scaf].length) ORD[scaf].push(r); else ORD[scaf].splice(pos,0,r); }
+}
+function createScaffale(code,name){ if(!SCAFFALI[code]){ SCAFFALI[code]=name||code; ORD[code]=ORD[code]||[]; scaffaliLoaded=true; } return code; }
+const CODE_S=/^S\d{3,8}$/, CODE_R=/^R\d{3,8}$/;   // S00028, R00140
+function contextScaffale(){ if(view.name==='scaffale') return view.code; if(view.name==='ripiano') return RIPIANI[view.code]; return null; }
+
+function openNewScaffale(code){
+  const wrap=document.createElement('div');wrap.className='sheet-wrap';
+  const sh=document.createElement('div');sh.className='sheet';wrap.appendChild(sh);
+  const closeAll=()=>{wrap.remove();sheetClosed();}; wrap.onclick=e=>{if(e.target===wrap)closeAll();};
+  sh.innerHTML='<div class="grip"></div><div class="pname">'+(code?'Scaffale '+code+' non esiste':'Nuovo scaffale')+'</div>'+
+    '<div class="status unplaced">'+(code?'Letto un codice scaffale sconosciuto. Puoi crearlo adesso.':'Scrivi il codice stampato sull\u2019etichetta (o leggilo con la fotocamera).')+'</div>'+
+    '<h4>Codice</h4><input class="fld" id="nsCode" placeholder="S00099" autocapitalize="characters" value="'+(code||'')+'">'+
+    '<h4>Nome (facoltativo, si può completare a desktop)</h4><input class="fld" id="nsName" placeholder="es. Integratori 2">'+
+    '<button class="bigbtn add" id="nsGo">Crea e apri</button>'+
+    '<div class="sheet-foot"><button class="close">Chiudi</button><button class="rescan">⌖&nbsp; Scansiona</button></div>';
+  sh.querySelector('.close').onclick=closeAll; sh.querySelector('.rescan').onclick=()=>{closeAll();openScan();};
+  sh.querySelector('#nsGo').onclick=()=>{
+    const c=sh.querySelector('#nsCode').value.trim().toUpperCase(), n=sh.querySelector('#nsName').value.trim();
+    if(!CODE_S.test(c)){ FX.err(); toast('Codice scaffale non valido: S + 3–8 cifre','err'); return; }
+    if(SCAFFALI[c]){ FX.err(); toast('Scaffale '+c+' esiste già','err'); closeAll(); openScaffale(c); return; }
+    createScaffale(c,n); FX.add(); toast('Scaffale '+c+' creato','add'); closeAll(); go({name:'scaffale',code:c});
+  };
+  document.body.appendChild(wrap); if(!code) try{sh.querySelector('#nsCode').focus();}catch(e){}
+}
+function openNewRipiano(code){
+  const wrap=document.createElement('div');wrap.className='sheet-wrap';
+  const sh=document.createElement('div');sh.className='sheet';wrap.appendChild(sh);
+  const closeAll=()=>{wrap.remove();sheetClosed();}; wrap.onclick=e=>{if(e.target===wrap)closeAll();};
+  const ctx=contextScaffale(); const keys=Object.keys(SCAFFALI);
+  if(!keys.length){ sh.innerHTML='<div class="grip"></div><div class="pname">Nessuno scaffale</div><div class="status unknown">Prima crea uno scaffale, poi collegaci i ripiani.</div><div class="sheet-foot"><button class="close">Chiudi</button></div>'; sh.querySelector('.close').onclick=closeAll; document.body.appendChild(wrap); return; }
+  sh.innerHTML='<div class="grip"></div><div class="pname">'+(code?'Ripiano '+code+' non esiste':'Nuovo ripiano')+'</div>'+
+    '<div class="status unplaced">'+(code?'Letto un codice ripiano sconosciuto. Puoi crearlo e collegarlo a uno scaffale.':'Scrivi il codice dell\u2019etichetta (o leggilo) e scegli lo scaffale.')+'</div>'+
+    '<h4>Codice</h4><input class="fld" id="nrCode" placeholder="R00199" autocapitalize="characters" value="'+(code||'')+'">'+
+    '<h4>Scaffale</h4><select class="fld" id="nrScaf">'+keys.map(k=>'<option value="'+k+'"'+(k===ctx?' selected':'')+'>'+k+' · '+SCAFFALI[k]+'</option>').join('')+'</select>'+
+    '<button class="bigbtn add" id="nrGo">Crea in fondo allo scaffale</button>'+
+    '<div class="status unplaced" style="margin-top:10px">Per metterlo al posto giusto: nello scaffale usa <b>Ordina leggendo</b> (leggi i ripiani dall\u2019alto in basso) oppure <b>Ordina a mano</b>.</div>'+
+    '<div class="sheet-foot"><button class="close">Chiudi</button><button class="rescan">⌖&nbsp; Scansiona</button></div>';
+  sh.querySelector('.close').onclick=closeAll; sh.querySelector('.rescan').onclick=()=>{closeAll();openScan();};
+  sh.querySelector('#nrGo').onclick=()=>{
+    const c=sh.querySelector('#nrCode').value.trim().toUpperCase(), sc=sh.querySelector('#nrScaf').value;
+    if(!CODE_R.test(c)){ FX.err(); toast('Codice ripiano non valido: R + 3–8 cifre','err'); return; }
+    if(RIPIANI[c]){ FX.err(); toast('Ripiano '+c+' esiste già in '+RIPIANI[c],'err'); closeAll(); openRipiano(c); return; }
+    linkRipiano(c,sc); FX.add(); toast('Ripiano '+c+' creato in '+sc,'add'); closeAll(); openAcc.add(c); go({name:'scaffale',code:sc});
+  };
+  document.body.appendChild(wrap); if(!code) try{sh.querySelector('#nrCode').focus();}catch(e){}
+}
+
+/* ---- Ordina a mano: righe con maniglia (trascinamento) e frecce ---- */
+function openMenu(kind,code){
+  const wrap=document.createElement('div');wrap.className='sheet-wrap';
+  const sh=document.createElement('div');sh.className='sheet';wrap.appendChild(sh);
+  const closeAll=()=>wrap.remove(); wrap.onclick=e=>{if(e.target===wrap)closeAll();};
+  const items=[];
+  if(kind==='home'){
+    items.push(['＋ Nuovo scaffale',()=>openNewScaffale('')]);
+    items.push(['⌖ Scaffali e ripiani in serie',()=>startBatch('struct',null),'Leggi uno scaffale, poi i suoi ripiani dall\u2019alto in basso; ripeti.']);
+    items.push(['⇉ Svuota ripiani in altri ripiani',()=>startBatch('movecont',null),'Leggi partenza e destinazione: tutto il contenuto passa. A coppie.']);
+    items.push(['↻ Ripristina…',openReset]);
+  } else if(kind==='scaffale'){
+    items.push(['＋ Nuovo ripiano',()=>openNewRipiano('')]);
+    items.push(['⌖ Ordina leggendo',()=>startBatch('struct',code),'Leggi le etichette dei ripiani dall\u2019alto in basso. Nuovi: creati. Di altri scaffali: spostati qui.']);
+    items.push(['⠿ Ordina a mano',()=>{ reorderScaf=code; FX.nav(); render(); }]);
+    items.push(['✎ Rinomina scaffale',()=>openRenameScaffale(code)]);
+    items.push(['✕ Elimina scaffale',()=>openDeleteScaffale(code),null,true]);
+  } else {
+    items.push(['⇉ Svuota in un altro ripiano…',()=>startBatch('movecont',code),'Leggi solo il ripiano di destinazione: tutto il contenuto di '+code+' passa lì.']);
+  }
+  const title={home:'Struttura e strumenti',scaffale:'Scaffale '+code,ripiano:'Ripiano '+code}[kind];
+  sh.innerHTML='<div class="grip"></div><div class="pname">'+title+'</div><div class="pcat">Attività non quotidiane</div>'+
+    items.map((it,i)=>'<button class="bigbtn '+(it[3]?'':'ghost')+'" data-i="'+i+'"'+(it[3]?' style="background:var(--err);color:#fff;border-color:var(--err)"':'')+'>'+it[0]+(it[2]?'<span class="sub">'+it[2]+'</span>':'')+'</button>').join('')+
+    '<div class="sheet-foot"><button class="close">Chiudi</button></div>';
+  sh.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>{ closeAll(); items[+b.dataset.i][1](); });
+  sh.querySelector('.close').onclick=closeAll;
+  document.body.appendChild(wrap);
+}
+function openRenameScaffale(scaf){
+  const wrap=document.createElement('div');wrap.className='sheet-wrap';
+  const sh=document.createElement('div');sh.className='sheet';wrap.appendChild(sh);
+  const closeAll=()=>wrap.remove(); wrap.onclick=e=>{if(e.target===wrap)closeAll();};
+  sh.innerHTML='<div class="grip"></div><div class="pname">Rinomina '+scaf+'</div><h4>Nome</h4><input class="fld" id="rnName" value="'+SCAFFALI[scaf].replace(/"/g,'&quot;')+'">'+
+    '<button class="bigbtn add" id="rnGo">Salva</button><div class="sheet-foot"><button class="close">Chiudi</button></div>';
+  sh.querySelector('.close').onclick=closeAll;
+  sh.querySelector('#rnGo').onclick=()=>{ const n=sh.querySelector('#rnName').value.trim(); if(!n){FX.err();toast('Il nome non può essere vuoto','err');return;} SCAFFALI[scaf]=n; FX.add(); toast('Rinominato: '+n,'add'); closeAll(); render(); };
+  document.body.appendChild(wrap); try{ const f=sh.querySelector('#rnName'); f.focus(); f.select(); }catch(e){}
+}
+function openDeleteScaffale(scaf){
+  const rips=ripianiDi(scaf); const nPl=PLC.filter(pl=>rips.indexOf(pl.r)>=0).length;
+  const wrap=document.createElement('div');wrap.className='sheet-wrap';
+  const sh=document.createElement('div');sh.className='sheet';wrap.appendChild(sh);
+  const closeAll=()=>wrap.remove(); wrap.onclick=e=>{if(e.target===wrap)closeAll();};
+  sh.innerHTML='<div class="grip"></div><div class="pname">Elimina '+scaf+' · '+SCAFFALI[scaf]+'</div>'+
+    '<div class="status '+(nPl?'unknown':'unplaced')+'">'+(rips.length?'Ha <b>'+rips.length+' ripiani</b> e <b>'+nPl+' collocazioni</b>. ':'Non ha ripiani. ')+
+    (nPl?'Eliminando, i '+nPl+' prodotti restano in anagrafica ma <b>perdono la posizione</b>. Se vuoi conservarla, prima sposta il contenuto dei ripiani altrove.':'Ripiani ed etichette non saranno più riconosciuti.')+
+    ' Questa operazione <b>non è annullabile</b> con ↶.</div>'+
+    '<button class="bigbtn" id="delGo" style="background:var(--err);color:#fff">Elimina scaffale'+(rips.length?', '+rips.length+' ripiani':'')+(nPl?' e '+nPl+' collocazioni':'')+'</button>'+
+    '<div class="sheet-foot"><button class="close">Chiudi</button></div>';
+  sh.querySelector('.close').onclick=closeAll;
+  sh.querySelector('#delGo').onclick=()=>{
+    for(let i=PLC.length-1;i>=0;i--) if(rips.indexOf(PLC[i].r)>=0) PLC.splice(i,1);
+    rips.forEach(r=>{ delete RIPIANI[r]; openAcc.delete(r); }); delete ORD[scaf]; delete SCAFFALI[scaf];
+    actions.length=0; updateUndo(); lastOp=null; if(reorderScaf===scaf) reorderScaf=null;
+    FX.rem(); toast('Eliminato '+scaf,'err'); closeAll(); scaffaliLoaded=true; goHome();
+  };
+  document.body.appendChild(wrap);
+}
+let reorderScaf=null;
+function renderReorder(m,scaf){
+  m.innerHTML='<div class="navbar"><button class="up" id="navUp">‹ Tutti gli scaffali</button></div>'+
+    '<div class="rhead"><div class="code">'+scaf+' <small>'+SCAFFALI[scaf]+'</small></div><div class="sub">Ordina i ripiani dall\u2019alto in basso: trascina la maniglia ⠿ o usa le frecce.</div></div>'+
+    '<div class="batchrow"><button class="add" id="ordDone">✓ Fatto</button></div><h2 class="sec">Ripiani, dall\u2019alto in basso</h2><div id="ordList"></div>';
+  $('navUp').onclick=()=>{ reorderScaf=null; scaffaliLoaded=true; go({name:'home'}); };
+  $('ordDone').onclick=()=>{ reorderScaf=null; FX.add(); toast('Ordine salvato','add'); render(); };
+  const list=$('ordList');
+  const commit=()=>{ ORD[scaf]=[...list.querySelectorAll('.ordrow')].map(e=>e.dataset.r); };
+  const build=()=>{
+    list.innerHTML='';
+    ripianiDi(scaf).forEach((r,i,arr)=>{
+      const row=document.createElement('div');row.className='ordrow';row.dataset.r=r;
+      row.innerHTML='<span class="handle" title="trascina">⠿</span><div class="body"><div class="t1">'+r+'</div><div class="t2">'+onRipiano(r).length+' prodotti</div></div>'+
+        '<span class="pos">'+(i+1)+'</span><button class="mv" data-d="-1" '+(i===0?'disabled':'')+'>▲</button><button class="mv" data-d="1" '+(i===arr.length-1?'disabled':'')+'>▼</button>';
+      row.querySelectorAll('.mv').forEach(b=>b.onclick=()=>{ const a=ORD[scaf]; const j=a.indexOf(r), k=j+(+b.dataset.d); if(k<0||k>=a.length) return; a.splice(j,1); a.splice(k,0,r); FX.nav(); build(); });
+      const h=row.querySelector('.handle');
+      h.onpointerdown=e=>{
+        e.preventDefault(); h.setPointerCapture(e.pointerId); row.classList.add('drag');
+        const move=ev=>{
+          const rows=[...list.querySelectorAll('.ordrow')].filter(x=>x!==row);
+          let target=null; for(const x of rows){ const b=x.getBoundingClientRect(); if(ev.clientY<b.top+b.height/2){ target=x; break; } }
+          if(target) list.insertBefore(row,target); else list.appendChild(row);
+        };
+        const up=()=>{ h.onpointermove=null; h.onpointerup=null; h.onpointercancel=null; row.classList.remove('drag'); commit(); FX.nav(); build(); };
+        h.onpointermove=move; h.onpointerup=up; h.onpointercancel=up;
+      };
+      list.appendChild(row);
+    });
+  };
+  build();
+}
+
+Object.keys(RIPIANI).forEach(r=>{ (ORD[RIPIANI[r]]=ORD[RIPIANI[r]]||[]).push(r); });   // ordine del seed
 
 /* =========================================================================
    DATI DA dati.xlsx (opzionale): se presente e con almeno un prodotto, sostituisce i dati integrati
@@ -632,13 +822,13 @@ function applyDati(sh){
   const norm=v=>String(v==null?'':v).trim();
   const codeNorm=c=>{c=norm(c); if(/^\d+$/.test(c)&&c.length<9) c=c.padStart(9,'0'); return c;};
   const P=(sh.Prodotti||[]).filter(r=>norm(r.MINSAN)); if(!P.length) return null;
-  [SCAFFALI,RIPIANI,PRODUCTS,CODE2ID,FARMADATI,FARMADATI_EAN].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));
+  [SCAFFALI,RIPIANI,ORD,PRODUCTS,CODE2ID,FARMADATI,FARMADATI_EAN].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));
   PLC.length=0; actions.length=0; openAcc.clear(); pendOp=null;
   const catName={}; (sh.Categorie||[]).forEach(r=>{ if(norm(r.Codice)) catName[norm(r.Codice).toUpperCase()]=norm(r.Nome); });
   const catLabel=c=>{ c=norm(c).toUpperCase(); return c ? (catName[c]?c+' - '+catName[c]:c) : 'W - Da classificare'; };
   let scart=0;
-  (sh.Scaffali||[]).forEach(r=>{ const c=norm(r.Scaffale).toUpperCase(); if(c) SCAFFALI[c]=norm(r.Nome)||c; });
-  (sh.Ripiani||[]).forEach(r=>{ const c=norm(r.Ripiano).toUpperCase(), sc=norm(r.Scaffale).toUpperCase(); if(c&&SCAFFALI[sc]) RIPIANI[c]=sc; else if(c){scart++;console.warn('Ripiano scartato',c,sc);} });
+  (sh.Scaffali||[]).forEach(r=>{ const c=norm(r.Scaffale).toUpperCase(); if(c){ SCAFFALI[c]=norm(r.Nome)||c; ORD[c]=[]; } });
+  (sh.Ripiani||[]).forEach(r=>{ const c=norm(r.Ripiano).toUpperCase(), sc=norm(r.Scaffale).toUpperCase(); if(c&&SCAFFALI[sc]) linkRipiano(c,sc); else if(c){scart++;console.warn('Ripiano scartato',c,sc);} });
   let nA=0,nF=0;
   P.forEach(r=>{
     const m=codeNorm(r.MINSAN), e=norm(r.EAN), name=norm(r.Descrizione)||m, cat=catLabel(r.Categoria), atc=norm(r.ATC);
@@ -665,7 +855,7 @@ async function loadDati(){
     const S=n=>wb.Sheets[n]?XLSX.utils.sheet_to_json(wb.Sheets[n],{raw:false,defval:''}):[];
     const info=applyDati({Scaffali:S('Scaffali'),Ripiani:S('Ripiani'),Prodotti:S('Prodotti'),Collocazioni:S('Collocazioni'),Categorie:S('Categorie')});
     if(!info) throw new Error('foglio Prodotti vuoto');
-    DATI_SRC='dati.xlsx';
+    DATI_SRC='dati.xlsx'; scaffaliLoaded=true;
     el.innerHTML='dati: <b>dati.xlsx</b> · '+info.prodotti+' in anagrafica · '+info.farmadati+' Farmadati · '+info.collocazioni+' collocazioni'+(info.scartate?' · <b>'+info.scartate+' righe scartate</b>':'');
   }catch(e){ el.textContent='dati: demo integrata ('+(e&&e.message?e.message:e)+')'; }
 }
@@ -676,6 +866,9 @@ function renderScaffale(m,scaf){
     '<div class="rhead"><div class="code">'+scaf+' <small>'+SCAFFALI[scaf]+'</small></div><div class="sub">'+
     (pendOp?'Tocca il ripiano di destinazione':'Tocca un ripiano per aprirne l\u2019elenco · "Apri" per entrarci')+'</div></div><h2 class="sec">Ripiani</h2>';
   $('navUp').onclick=()=>{ scaffaliLoaded=true; FX.nav(); go({name:'home'}); };
+  m.insertAdjacentHTML('beforeend','<div class="batchrow struct"><button id="sMenu">⋯ Struttura dello scaffale</button></div>');
+  $('sMenu').onclick=()=>openMenu('scaffale',scaf);
+  if(!ripianiDi(scaf).length) m.insertAdjacentHTML('beforeend','<div class="emptybox">Nessun ripiano. In <b>⋯ Struttura</b>: crea il primo, oppure <b>Ordina leggendo</b> le etichette dei ripiani dall\u2019alto in basso.</div>');
   ripianiDi(scaf).forEach(r=>{
     const items=onRipiano(r);
     const acc=document.createElement('div');acc.className='acc'+(openAcc.has(r)?' open':'');
@@ -704,15 +897,15 @@ function renderRipiano(m,r){
     (lastOp&&(lastOp.r===r||lastOp.to===r) ? '<div class="contbar"><div class="tx">'+
       ({add:'Aggiunto <b>'+lastOp.name+'</b> qui.',rem:'Tolto <b>'+lastOp.name+'</b> da qui.',move:'Spostato <b>'+lastOp.name+'</b> '+lastOp.r+' → '+lastOp.to+'.'}[lastOp.kind])+
       '</div><button class="go" id="contGo">Continua in serie ›</button><button class="x" id="contX">×</button></div>' : '')+
-    '<div class="batchrow"><button class="add" id="bAdd">＋ Aggiungi in serie</button><button class="rem" id="bRem">− Togli in serie</button><button class="move" id="bMove">→ Sposta in serie…</button></div>'+
+    '<div class="batchrow"><button class="add" id="bAdd">＋ Aggiungi in serie</button><button class="rem" id="bRem">− Togli in serie</button><button class="move" id="bMove">→ Sposta alcuni…</button><button id="rMenu" style="flex:0 0 auto;padding:10px 12px">⋯</button></div>'+
     '<h2 class="sec">Prodotti su questo ripiano</h2>';
   $('navUp').onclick=()=>{ FX.nav(); openAcc.add(r); go({name:'scaffale',code:scaf}); };
-  $('bAdd').onclick=()=>startBatch('add',r); $('bRem').onclick=()=>startBatch('rem',r); $('bMove').onclick=()=>startBatch('move',r);
+  $('bAdd').onclick=()=>startBatch('add',r); $('bRem').onclick=()=>startBatch('rem',r); $('bMove').onclick=()=>startBatch('move',r); $('rMenu').onclick=()=>openMenu('ripiano',r);
   if($('contGo')){ const lo=lastOp; $('contGo').onclick=()=>startBatch(lo.kind,lo.r); $('contX').onclick=()=>{ lastOp=null; render(); }; }
   if(prev) $('navPrev').onclick=()=>{ FX.nav(); go({name:'ripiano',code:prev}); };
   if(next) $('navNext').onclick=()=>{ FX.nav(); go({name:'ripiano',code:next}); };
   const items=onRipiano(r);
-  if(!items.length){ m.insertAdjacentHTML('beforeend','<div class="emptybox">Ripiano vuoto.<br>Spara un prodotto per aggiungerlo qui.</div>'); return; }
+  if(!items.length){ m.insertAdjacentHTML('beforeend','<div class="emptybox">Ripiano vuoto.<br>Leggi un prodotto per aggiungerlo qui.</div>'); return; }
   items.forEach(pl=>m.appendChild(productRow(pl,r)));
 }
 
@@ -738,7 +931,7 @@ function openProductCard(code){
       '<div class="status unplaced">Lo aggiungo subito <b>in attesa di risposta da Farmadati</b>: nome, categoria e ATC arrivano appena risponde. Se non lo conosce, resta da completare a desktop.</div>'+
       '<h4>Aggiungi</h4>'+
       (here?'<button class="bigbtn add" data-pdhere="'+here+'">Aggiungi qui — '+here+'</button>':'')+
-      '<button class="bigbtn ghost" data-pdscan="1">Aggiungi — spara ripiano di destinazione</button>'+
+      '<button class="bigbtn ghost" data-pdscan="1">Aggiungi — leggi il ripiano di destinazione</button>'+
       '<div class="sheet-foot"><button class="close">Chiudi</button><button class="rescan">⌖&nbsp; Scansiona</button></div>';
     const hb=sh.querySelector('[data-pdhere]'); if(hb)hb.onclick=()=>{const np=createPending(code);closeAll();doAdd(np,hb.dataset.pdhere);};
     sh.querySelector('[data-pdscan]').onclick=()=>{const np=createPending(code);startAdd(np);closeAll();armScan();};
@@ -757,7 +950,7 @@ function openProductCard(code){
       html+='<button class="bigbtn add" data-here="'+view.code+'">Aggiungi qui — '+view.code+'</button>';
       html+='<button class="bigbtn ghost" data-addelse="1">Aggiungi in un altro ripiano…</button>';
     } else {
-      html+='<button class="bigbtn add" data-addelse="1">Aggiungi — spara ripiano di destinazione</button>';
+      html+='<button class="bigbtn add" data-addelse="1">Aggiungi — leggi il ripiano di destinazione</button>';
     }
   } else {
     const dup=places.length>1;
@@ -772,7 +965,7 @@ function openProductCard(code){
       html+= dup ? '' : '<button class="bigbtn move" data-movehere="'+view.code+'">Sposta qui — '+view.code+'</button>';
       html+='<button class="bigbtn ghost" data-here="'+view.code+'">Aggiungi anche qui — '+view.code+' (duplicato)</button>';
     }
-    if(!dup) html+='<button class="bigbtn move" data-move="'+places[0].r+'">Sposta — spara ripiano di destinazione</button>';
+    if(!dup) html+='<button class="bigbtn move" data-move="'+places[0].r+'">Sposta — leggi il ripiano di destinazione</button>';
     html+='<button class="bigbtn ghost" data-addelse="1">Aggiungi anche in un altro ripiano… (duplicato)</button>';
   }
   html+='<div class="sheet-foot"><button class="close">Chiudi</button><button class="rescan">⌖&nbsp; Scansiona</button></div>';
@@ -798,12 +991,23 @@ function armScan(){ if(view.name!=='scaffale') openScan(); }
    BATCH: tanti prodotti sullo stesso ripiano (aggiungi / togli) o da un ripiano a un altro (sposta)
    ========================================================================= */
 function startBatch(mode,r){
-  batch={mode,r,to:null,n:0,items:[]}; lastOp=null; pendOp=null; renderPending();
+  batch={mode,r:r||null,to:null,n:0,items:[],seq:{},hist:[],pairs:[],last:''};   // seq: scaffale -> [ripiani letti in ordine] (modo struct) lastOp=null; pendOp=null; renderPending();
   updateBatchBar(); FX.nav(); render(); openScan();
 }
 /* Fine: chiude la serie. Per aggiungi/togli è il termine normale; per sposta senza destinazione letta è un annullo. */
 function endBatch(navigate){
   const b=batch; if(!b) return; batch=null; updateBatchBar();
+  if(b.mode==='struct'){
+    let nS=0,nR=0;
+    Object.keys(b.seq).forEach(sc=>{ nS++; const seq=b.seq[sc]; nR+=seq.length; const rest=(ORD[sc]||[]).filter(r=>seq.indexOf(r)<0); ORD[sc]=seq.concat(rest); });
+    if(navigate){ closeScan(); if(b.r) go({name:'scaffale',code:b.r}); else { scaffaliLoaded=true; goHome(); } } else render();
+    toast(nS? nS+' scaffali · '+nR+' ripiani in sequenza' : 'Struttura invariata', nS?'add':'err'); return;
+  }
+  if(b.mode==='movecont'){
+    const last=b.pairs[b.pairs.length-1];
+    if(navigate){ closeScan(); if(last) go({name:'ripiano',code:last.to}); else render(); } else render();
+    toast(b.pairs.length? b.n+' prodotti spostati in '+b.pairs.length+(b.pairs.length===1?' coppia':' coppie')+' di ripiani' : 'Nessun contenuto spostato', b.pairs.length?'move':'err'); return;
+  }
   if(b.mode==='move' && !b.to){
     if(navigate) closeScan(); else render();
     toast(b.items.length ? 'Sposta annullato: nessun prodotto spostato' : 'Sposta annullato','err'); return;
@@ -816,24 +1020,58 @@ function batchTitle(){
   if(!batch) return '';
   if(batch.mode==='add') return 'AGGIUNGI in '+batch.r+' · '+batch.n;
   if(batch.mode==='rem') return 'TOGLI da '+batch.r+' · '+batch.n;
+  if(batch.mode==='movecont') return batch.r ? 'SVUOTA '+batch.r+' → ?' : 'SPOSTA CONTENUTI · '+batch.n+' prodotti';
+  if(batch.mode==='struct') return batch.r ? 'STRUTTURA · '+batch.r+' · '+(batch.seq[batch.r]||[]).length+' ripiani' : 'STRUTTURA · leggi uno scaffale';
   return 'SPOSTA da '+batch.r+' · '+batch.items.length+' raccolti';
 }
 function batchHint(){
   if(!batch) return '';
   if(batch.mode==='add') return 'Leggi uno per uno i prodotti da mettere qui. Un altro ripiano letto cambia destinazione. Fine quando hai finito.';
   if(batch.mode==='rem') return 'Leggi uno per uno i prodotti da togliere da qui. Fine quando hai finito.';
+  if(batch.mode==='movecont') return batch.r ? 'Leggi il ripiano di destinazione: tutto il contenuto di '+batch.r+' ('+onRipiano(batch.r).length+' prodotti) passa lì.' : 'Leggi il ripiano di partenza, poi quello di destinazione. Ripeti per altre coppie. Fine quando hai finito.';
+  if(batch.mode==='struct') return batch.r ? 'Leggi i ripiani di '+batch.r+' dall\u2019alto in basso (nuovi: creati; di altri scaffali: spostati qui). Poi il prossimo scaffale. Fine quando hai finito.' : 'Leggi l\u2019etichetta di uno scaffale (se non esiste viene creato), poi i suoi ripiani dall\u2019alto in basso.';
   return batch.items.length ? 'Altri prodotti, oppure leggi il ripiano di destinazione: li sposta tutti.' : '1) Leggi i prodotti da spostare   2) leggi il ripiano di destinazione.';
 }
 function updateBatchBar(){
   const bar=$('batchBar'); if(!bar) return;
   bar.classList.toggle('hidden',!batch); if(!batch) return;
-  $('bbTitle').textContent=batchTitle(); $('bbSub').textContent=batchHint();
+  $('bbTitle').textContent=batchTitle(); $('bbSub').textContent=batchHint(); $('bbLast').textContent=batch.last?'Ultimo: '+batch.last:'';
   const m=$('camMsg'); if(m&&camTimer) m.textContent=camPrompt();
 }
 function batchRead(raw){
   const r=classify(raw); if(r.type==='empty') return;
   const pname=pid=>PRODUCTS[pid].name;
   let out='';
+  if(batch.mode==='movecont'){
+    if(r.type!=='ripiano'){ FX.err(); toast('Qui si leggono solo ripiani','err'); pushScanLog(r,'ignorato'); return; }
+    if(!RIPIANI[r.code]){ FX.err(); toast('Ripiano '+r.code+' inesistente','err'); pushScanLog(r,'inesistente'); return; }
+    if(!batch.r){ if(!onRipiano(r.code).length){ FX.err(); toast(r.code+' è vuoto: leggi un ripiano con prodotti','err'); out='vuoto'; } else { batch.r=r.code; FX.open(); toast('Partenza '+r.code+' · '+onRipiano(r.code).length+' prodotti','move'); out='partenza'; } updateBatchBar(); pushScanLog(r,out); return; }
+    if(r.code===batch.r){ FX.err(); toast('È il ripiano di partenza','err'); pushScanLog(r,'partenza'); return; }
+    const from=batch.r, to=r.code, moved=[], merged=[];
+    onRipiano(from).slice().forEach(pl=>{
+      if(PLC.some(p=>p.pid===pl.pid&&p.r===to)){ doRemove(pl.pid,from,true); merged.push(pl.pid); }
+      else if(doMove(pl.pid,from,to,true)) moved.push(pl.pid);
+    });
+    batch.pairs.push({from,to,moved,merged}); batch.n+=moved.length; batch.r=null; FX.move();
+    toast(moved.length+' spostati '+from+' → '+to+(merged.length?' · '+merged.length+' già presenti, uniti':''),'move');
+    updateBatchBar(); pushScanLog(r,moved.length+' spostati'); updateUndo(); return;
+  }
+  if(batch.mode==='struct'){
+    if((r.type==='scaffale'&&!CODE_S.test(r.code))||(r.type==='ripiano'&&!CODE_R.test(r.code))){ FX.err(); toast('Codice non valido: '+r.code,'err'); pushScanLog(r,'non valido'); return; }
+    if(r.type==='scaffale'){
+      if(!SCAFFALI[r.code]){ createScaffale(r.code,''); FX.add(); toast('Scaffale '+r.code+' creato','add'); out='creato'; } else { FX.open(); toast('Scaffale '+r.code,'add'); out='corrente'; }
+      batch.r=r.code; batch.seq[r.code]=batch.seq[r.code]||[];
+      updateBatchBar(); pushScanLog(r,out); return;
+    }
+    if(r.type!=='ripiano'){ FX.err(); toast('Qui si leggono etichette di scaffali e ripiani','err'); pushScanLog(r,'ignorato'); return; }
+    if(!batch.r){ FX.err(); toast('Prima leggi lo scaffale di questo ripiano','err'); pushScanLog(r,'manca scaffale'); return; }
+    const seq=batch.seq[batch.r]=batch.seq[batch.r]||[];
+    if(seq.indexOf(r.code)>=0){ FX.err(); toast('Già letto: '+r.code,'err'); out='doppio'; }
+    else if(!RIPIANI[r.code]){ linkRipiano(r.code,batch.r); seq.push(r.code); batch.hist.push({sc:batch.r,r:r.code,kind:'new'}); FX.add(); toast('Nuovo ripiano '+r.code+' in '+batch.r+' ('+seq.length+'°)','add'); out='creato'; }
+    else if(RIPIANI[r.code]!==batch.r){ const from=RIPIANI[r.code]; linkRipiano(r.code,batch.r); seq.push(r.code); batch.hist.push({sc:batch.r,r:r.code,kind:'moved',from}); FX.move(); toast(r.code+' spostato da '+from+' ('+seq.length+'°)','move'); out='collegato'; }
+    else { seq.push(r.code); batch.hist.push({sc:batch.r,r:r.code,kind:'pos'}); FX.open(); toast(r.code+' → posizione '+seq.length,'add'); out='posizione '+seq.length; }
+    updateBatchBar(); pushScanLog(r,out); return;
+  }
   if(r.type==='ripiano'){
     if(!RIPIANI[r.code]){ FX.err(); toast('Ripiano '+r.code+' inesistente','err'); out='inesistente'; }
     else if(batch.mode==='move'){
@@ -861,9 +1099,9 @@ function batchRead(raw){
   updateBatchBar(); pushScanLog(r,out); updateUndo();
 }
 function startMove(pid,from){ pendOp={op:'move',pid,from}; renderPending(); if(view.name==='scaffale') render();
-  toast('Spara il ripiano di destinazione','move'); FX.nav(); }
+  toast('Leggi il ripiano di destinazione','move'); FX.nav(); }
 function startAdd(pid){ pendOp={op:'add',pid}; renderPending(); if(view.name==='scaffale') render();
-  toast('Spara il ripiano di destinazione','move'); FX.nav(); }
+  toast('Leggi il ripiano di destinazione','move'); FX.nav(); }
 function cancelPending(){ pendOp=null; renderPending(); if(view.name==='scaffale') render(); }
 
 function completePending(dest){
@@ -911,6 +1149,22 @@ $('btnUndo').onclick=undoLast;
 $('bbUndo').onclick=()=>{
   if(!batch) return;
   if(batch.mode==='move'){ const pid=batch.items.pop(); if(pid) toast('Tolto dalla raccolta: '+PRODUCTS[pid].name,'err'); updateBatchBar(); return; }
+  if(batch.mode==='movecont'){
+    if(batch.r){ toast('Partenza '+batch.r+' annullata','err'); batch.r=null; updateBatchBar(); return; }
+    const pr=batch.pairs.pop(); if(!pr){ toast('Niente da annullare','err'); return; }
+    pr.moved.forEach(pid=>{ const pl=PLC.find(p=>p.pid===pid&&p.r===pr.to); if(pl) pl.r=pr.from; });
+    pr.merged.forEach(pid=>{ PLC.push({pid,r:pr.from,role:'sub'}); });
+    let k=pr.moved.length+pr.merged.length; for(let i=0;i<actions.length&&k>0;){ const a=actions[i]; if((a.kind==='move'&&a.from===pr.from&&a.to===pr.to)||(a.kind==='rem'&&a.r===pr.from)){ actions.splice(i,1); k--; } else i++; }
+    batch.n-=pr.moved.length; toast('Annullato: '+pr.from+' → '+pr.to,'err'); render(); updateUndo(); updateBatchBar(); return;
+  }
+  if(batch.mode==='struct'){
+    const h=batch.hist.pop(); if(!h){ toast('Niente da togliere','err'); updateBatchBar(); return; }
+    const seq=batch.seq[h.sc]||[]; const i=seq.lastIndexOf(h.r); if(i>=0) seq.splice(i,1);
+    if(h.kind==='new'){ const o=ORD[h.sc]||[]; const k=o.indexOf(h.r); if(k>=0) o.splice(k,1); delete RIPIANI[h.r]; toast('Annullato: '+h.r+' eliminato','err'); }
+    else if(h.kind==='moved'){ linkRipiano(h.r,h.from); toast('Annullato: '+h.r+' torna in '+h.from,'err'); }
+    else toast('Tolto dalla sequenza: '+h.r,'err');
+    batch.r=h.sc; updateBatchBar(); return;
+  }
   if(!actions.length||batch.n===0) return; undoLast(); batch.n--; toast('Annullata l\u2019ultima','err'); updateBatchBar();
 };
 $('bbEnd').onclick=()=>endBatch(true);
@@ -925,12 +1179,12 @@ function dispatch(raw){
   if(pendOp){
     if(r.type==='ripiano'){ out = RIPIANI[r.code] ? (pendOp.op==='add'?'aggiunto in '+r.code:'spostato in '+r.code) : 'ripiano inesistente'; completePending(r.code); }
     else if(r.type==='empty'){ return; }
-    else { FX.err(); toast('Spara un ripiano di destinazione (o annulla)','err'); out='serve destinazione'; }
+    else { FX.err(); toast('Leggi un ripiano di destinazione (o annulla)','err'); out='serve destinazione'; }
     pushScanLog(r,out); if(view!==viewBefore) closeScan(); return;
   }
   switch(r.type){
-    case 'scaffale': if(SCAFFALI[r.code]){FX.open();openScaffale(r.code);out='scaffale aperto';} else {openScaffale(r.code);out='sconosciuto';} break;
-    case 'ripiano':  if(RIPIANI[r.code]){FX.open();openRipiano(r.code);out='ripiano aperto';} else {openRipiano(r.code);out='inesistente';} break;
+    case 'scaffale': if(SCAFFALI[r.code]){FX.open();openScaffale(r.code);out='scaffale aperto';} else if(!CODE_S.test(r.code)){FX.err();toast('Codice scaffale non valido: '+r.code,'err');out='non valido';} else {FX.nav();openNewScaffale(r.code);out='nuovo?';} break;
+    case 'ripiano':  if(RIPIANI[r.code]){FX.open();openRipiano(r.code);out='ripiano aperto';} else if(!CODE_R.test(r.code)){FX.err();toast('Codice ripiano non valido: '+r.code,'err');out='non valido';} else {FX.nav();openNewRipiano(r.code);out='nuovo?';} break;
     case 'product':  { const pid=resolve(r.code); out = !pid?'prodotto sconosciuto':(ripianiOf(pid).length?'a scaffale':'non a scaffale'); openProductCard(r.code); } break;
     case 'empty':    return;
     default:         FX.err(); toast('Formato non valido','err'); out='formato non valido';
@@ -976,7 +1230,7 @@ function reticleROI(v){
   const w=Math.round((1-RET.l-RET.r)*W/sc), h=Math.round((1-RET.t-RET.b)*H/sc);
   return {x:Math.max(0,x),y:Math.max(0,y),w:Math.min(w,vw-x),h:Math.min(h,vh-y)};
 }
-function camPrompt(){ if(batch) return batch.mode!=='move' ? 'Leggi i prodotti uno dopo l\u2019altro' : (batch.items.length ? 'Altri prodotti, o il ripiano di destinazione' : 'Leggi i prodotti da spostare'); return pendOp ? 'Leggi il ripiano di destinazione' : 'Inquadra il codice…'; }
+function camPrompt(){ if(batch&&batch.mode==='movecont') return batch.r ? 'Leggi il ripiano di destinazione' : 'Leggi il ripiano di partenza'; if(batch&&batch.mode==='struct') return batch.r ? 'Leggi i ripiani di '+batch.r+' dall\u2019alto in basso' : 'Leggi uno scaffale'; if(batch) return batch.mode!=='move' ? 'Leggi i prodotti uno dopo l\u2019altro' : (batch.items.length ? 'Altri prodotti, o il ripiano di destinazione' : 'Leggi i prodotti da spostare'); return pendOp ? 'Leggi il ripiano di destinazione' : 'Inquadra il codice…'; }
 let camLastRaw='', camLastT=0;
 function camRead(raw){
   if(batch){
