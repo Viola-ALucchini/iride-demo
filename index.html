@@ -179,12 +179,15 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
 .destbtn .r{font-size:16px;font-weight:800;color:var(--berry)}
 .destbtn .rr{font-size:12px;color:var(--muted)}
 .destbtn .go{margin-left:auto;font-size:13px;font-weight:700;color:var(--berry)}
-.plrow{display:flex;gap:8px;align-items:stretch;margin-bottom:6px}
-.plrow .destbtn{flex:1;margin:0}
-.plrow .rowmove,.plrow .rowrem{flex:0 0 auto;border:none;border-radius:12px;color:#fff;font-weight:800;font-size:14px;padding:0 14px}
-.plrow .rowmove{background:var(--move)}
-.plrow .rowrem{background:var(--err)}
-.plrow .rowmove:active,.plrow .rowrem:active{filter:brightness(.92)}
+.plrow{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:8px}
+.plrow .plinfo .r{font-size:18px;font-weight:800;color:var(--berry)}
+.plrow .plinfo .rr{font-size:12px;color:var(--muted);margin-top:2px}
+.plrow .plbtns{display:flex;gap:8px;margin-top:10px}
+.plrow .plbtns button{flex:1;border-radius:11px;font-weight:800;font-size:14px;padding:12px 6px;border:2px solid transparent}
+.plrow .rowopen{background:#fff;color:var(--berry);border-color:var(--berry) !important}
+.plrow .rowmove{background:var(--move);color:#fff}
+.plrow .rowrem{background:var(--err);color:#fff}
+.plrow .plbtns button:active{filter:brightness(.92)}
 .bigbtn{width:100%;border:none;border-radius:13px;font-weight:800;font-size:16px;padding:15px;color:#fff;margin-top:6px}
 .bigbtn.add{background:var(--add)} .bigbtn.add:active{filter:brightness(.92)}
 .bigbtn.move{background:var(--move)}
@@ -280,7 +283,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
   <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
   <button class="entra" id="btnEntra">ENTRA</button>
-  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v7</b></div>
+  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v9</b></div>
 </div>
 
 <header>
@@ -320,8 +323,8 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
       <button class="scan-close" id="scanClose">Chiudi</button>
     </div>
     <div class="scan-tabs">
-      <button class="scan-tab active" id="tabHid" data-tab="hid">Lettore esterno</button>
-      <button class="scan-tab" id="tabCam" data-tab="cam">Fotocamera</button>
+      <button class="scan-tab active" id="tabCam" data-tab="cam">Fotocamera</button>
+      <button class="scan-tab" id="tabHid" data-tab="hid">Lettore esterno</button>
     </div>
     <div class="scan-pane" id="paneHid">
       <input id="scanIn" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Spara — il codice appare qui">
@@ -629,8 +632,8 @@ function openProductCard(code){
     html+='<div class="status placed">È a scaffale in '+places.length+(dup?' ripiani (posizione duplicata).':' ripiano.')+'</div>';
     html+='<h4>'+(dup?'Dove si trova — scegli quale posizione spostare':'Dove si trova')+'</h4>';
     places.forEach(pl=>{
-      html+='<div class="plrow"><button class="destbtn" data-goto="'+pl.r+'"><div><div class="r">'+pl.r+'</div><div class="rr">scaffale '+RIPIANI[pl.r]+' · '+(pl.role==='prin'?'principale':'duplicato')+'</div></div><span class="go">Apri ›</span></button>'+
-        '<button class="rowrem" data-rem="'+pl.r+'">Togli</button><button class="rowmove" data-move="'+pl.r+'">Sposta</button></div>';
+      html+='<div class="plrow"><div class="plinfo"><div class="r">'+pl.r+'</div><div class="rr">scaffale '+RIPIANI[pl.r]+' · '+(pl.role==='prin'?'principale':'duplicato')+'</div></div>'+
+        '<div class="plbtns"><button class="rowopen" data-goto="'+pl.r+'">Apri</button><button class="rowrem" data-rem="'+pl.r+'">Togli</button><button class="rowmove" data-move="'+pl.r+'">Sposta</button></div></div>';
     });
     html+='<h4>Azioni</h4>';
     if(view.name==='ripiano' && !places.some(pl=>pl.r===view.code)){
@@ -798,7 +801,9 @@ function camPrompt(){ return pendOp ? 'Leggi il ripiano di destinazione' : 'Inqu
 function confirmCam(){ const raw=camProposed; if(!raw) return; hideConfirm(); dispatch(raw); camProposed=''; camPrev=''; camHits=0; $('camMsg').textContent=camPrompt(); setTimeout(function(){ if(!document.querySelector('.sheet-wrap')) camPaused=false; },700); }
 function sheetOpened(){ if(camTimer) camPaused=true; }
 function sheetClosed(){ if(!camTimer) return; camPrev=''; camHits=0; $('camMsg').textContent=camPrompt(); setTimeout(function(){camPaused=false;},400); }
-function openScan(){ $('scanWrap').classList.remove('hidden'); setScanTab('hid'); }
+function camSupported(){ return !!(window.isSecureContext && ('BarcodeDetector' in window) && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
+let scanPref=null;   // ultima tab scelta a mano dall'operatore in questa sessione
+function openScan(){ $('scanWrap').classList.remove('hidden'); setScanTab(scanPref || (camSupported()?'cam':'hid')); }
 function closeScan(){ $('scanWrap').classList.add('hidden'); stopCamera(); }
 function setScanTab(tab){
   const hid=(tab==='hid');
@@ -853,8 +858,8 @@ $('ccNo').onclick=resumeCam;
 $('btnScan').onclick=openScan;
 $('scanClose').onclick=closeScan;
 $('scanScrim').onclick=closeScan;
-$('tabHid').onclick=()=>setScanTab('hid');
-$('tabCam').onclick=()=>setScanTab('cam');
+$('tabHid').onclick=()=>{scanPref='hid';setScanTab('hid');};
+$('tabCam').onclick=()=>{scanPref='cam';setScanTab('cam');};
 $('scanIn').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); scanSubmit(); } });
 
 $('btnEntra').onclick=()=>{
