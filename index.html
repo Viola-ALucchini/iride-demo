@@ -89,7 +89,13 @@ header .pv{margin-left:auto;font-size:11px;opacity:.72;text-align:right;line-hei
 main{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 12px 12px}
 main.home{display:flex;flex-direction:column}
 .tools{margin-top:auto;padding-top:18px}
-.tools .sec{margin-bottom:10px}
+.sheet.full{max-height:94dvh;min-height:88dvh;display:flex;flex-direction:column}
+.sheet.full .tools-grid{flex:1;display:grid;grid-template-columns:1fr;grid-auto-rows:1fr;gap:12px;margin:8px 0 12px}
+.sheet.full .tool{min-height:0;padding:14px;border-radius:18px}
+.sheet.full .tool .ico{width:84px;height:84px;border-radius:18px}
+.sheet.full .tool .ico svg{width:48px;height:48px}
+.sheet.full .tool .lbl{font-size:18px}
+.sheet.full .tool .lbl small{font-size:13px;margin-top:5px}
 .tools-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .tool{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px;text-align:left;color:var(--berry-ink);min-height:84px}
 .tool:active{background:var(--cream-2)}
@@ -317,7 +323,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
   <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
   <button class="entra" id="btnEntra">ENTRA</button>
-  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v22</b></div>
+  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v23</b></div>
   <div class="pv" id="gateData">dati: caricamento…</div>
 </div>
 
@@ -741,16 +747,25 @@ const ICONS={
 };
 function toolsSection(){
   const wrap=document.createElement('div');wrap.className='tools';
-  wrap.innerHTML='<h2 class="sec">Struttura e strumenti</h2><div class="tools-grid">'+
+  const b=document.createElement('button');b.className='home-cta secondary';b.innerHTML='⋯&nbsp; Struttura e strumenti';b.onclick=openTools;
+  wrap.appendChild(b); return wrap;
+}
+function openTools(){
+  const wrap=document.createElement('div');wrap.className='sheet-wrap';
+  const sh=document.createElement('div');sh.className='sheet full';wrap.appendChild(sh);
+  const closeAll=()=>wrap.remove(); wrap.onclick=e=>{if(e.target===wrap)closeAll();};
+  sh.innerHTML='<div class="grip"></div><div class="pname">Struttura e strumenti</div><div class="pcat">Attività non quotidiane</div><div class="tools-grid">'+
     '<button class="tool c-new" data-t="new"><span class="ico">'+ICONS.newShelf+'</span><span class="lbl">Nuovo scaffale<small>codice + nome</small></span></button>'+
     '<button class="tool c-struct" data-t="struct"><span class="ico">'+ICONS.struct+'</span><span class="lbl">Scaffali e ripiani in serie<small>leggi scaffale, poi i ripiani</small></span></button>'+
     '<button class="tool c-empty" data-t="empty"><span class="ico">'+ICONS.empty+'</span><span class="lbl">Svuota ripiani<small>tutto da un ripiano all\u2019altro</small></span></button>'+
-    '<button class="tool c-reset" data-t="reset"><span class="ico">'+ICONS.reset+'</span><span class="lbl">Ripristina<small>dati iniziali / prova</small></span></button></div>';
-  wrap.querySelector('[data-t="new"]').onclick=()=>openNewScaffale('');
-  wrap.querySelector('[data-t="struct"]').onclick=()=>startBatch('struct',null);
-  wrap.querySelector('[data-t="empty"]').onclick=()=>startBatch('movecont',null);
-  wrap.querySelector('[data-t="reset"]').onclick=openReset;
-  return wrap;
+    '<button class="tool c-reset" data-t="reset"><span class="ico">'+ICONS.reset+'</span><span class="lbl">Ripristina<small>dati iniziali / strumenti di prova</small></span></button></div>'+
+    '<div class="sheet-foot"><button class="close">Chiudi</button></div>';
+  sh.querySelector('[data-t="new"]').onclick=()=>{closeAll();openNewScaffale('');};
+  sh.querySelector('[data-t="struct"]').onclick=()=>{closeAll();startBatch('struct',null);};
+  sh.querySelector('[data-t="empty"]').onclick=()=>{closeAll();startBatch('movecont',null);};
+  sh.querySelector('[data-t="reset"]').onclick=()=>{closeAll();openReset();};
+  sh.querySelector('.close').onclick=closeAll;
+  document.body.appendChild(wrap);
 }
 function openMenu(kind,code){
   const wrap=document.createElement('div');wrap.className='sheet-wrap';
