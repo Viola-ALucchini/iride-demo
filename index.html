@@ -155,6 +155,9 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
 .role{flex:0 0 auto;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
   padding:4px 7px;border-radius:999px;background:var(--dup-bg);color:var(--dup)}
 .role.prin{background:#efe7eb;color:var(--berry)}
+.role.park{background:var(--err-bg);color:#8a261b;margin-right:6px}
+.role.fd{background:var(--add-bg);color:#205a2a;margin-right:6px}
+.pcat{font-size:12px;color:var(--muted);margin:-4px 0 8px}
 .emptybox{text-align:center;color:var(--muted);font-size:14px;padding:26px 10px;line-height:1.5;
   background:var(--card);border:1px dashed var(--line);border-radius:14px}
 
@@ -275,7 +278,8 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
   <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
   <button class="entra" id="btnEntra">ENTRA</button>
-  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v10</b></div>
+  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v12</b></div>
+  <div class="pv" id="gateData">dati: caricamento…</div>
 </div>
 
 <header>
@@ -331,6 +335,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
 </div>
 
+<script src="xlsx.full.min.js"></script>
 <script>
 "use strict";
 if(typeof NodeList!=='undefined' && NodeList.prototype && !NodeList.prototype.forEach){ NodeList.prototype.forEach=Array.prototype.forEach; }
@@ -346,6 +351,32 @@ const PRODUCTS = {};   // pid -> {name, cat, codes:[]}
 const CODE2ID  = {};
 let PLC = [];          // placements: [{pid, r, role}]
 
+/* ---- Mirror Farmadati (SIMULATO per la demo). Forma del record = risposta reale:
+   FDI_0001 minsan · FDI_0002 ean · FDI_0004 descrizione · FDI_T612[0:3] categoria di scaffale · FDI_0329 ATC ---- */
+const FARMADATI = {
+  '012745182': {name:'TACHIPIRINA*16CPR DIV 1000MG', cat:'A05 - Anti-dolore', atc:'N02BE01'},
+  '012745093': {name:'TACHIPIRINA*20CPR DIV 500MG',  cat:'A05 - Anti-dolore', atc:'N02BE01'},
+  '035618053': {name:'MOMENTACT*20CPR RIV 400MG',    cat:'A05 - Anti-dolore', atc:'M01AE01'},
+  '034548154': {name:'VOLTAREN EMULGEL*GEL 100G 2%', cat:'A05 - Anti-dolore', atc:'M02AA15'},
+  '041545031': {name:'GAVISCON BRUCIORE E INDIG*24BS',cat:'A03 - Stomaco e Intestino', atc:'A02BX13'},
+  '013046077': {name:'ENTEROGERMINA*OS 10FL 4MLD 5ML',cat:'A03 - Stomaco e Intestino', atc:'A07FA'},
+  '034936169': {name:'FLUIMUCIL MUCOL*OS 10BUST600MG',cat:'A04 - Rimedi stagionali inverno', atc:'R05CB01'},
+  '935382782': {name:'BLEFARETTE SALV OCULARI 30PZ', cat:'A16 - Occhi e vista', atc:'7BB3D'},
+  '901542237': {name:'VEA LIPOGEL IDRAT PROT 50ML',  cat:'C06 - Corpo igiene e cura', atc:'6AC5I01', ean:'8000000000019'}
+};
+const FARMADATI_EAN = {}; Object.keys(FARMADATI).forEach(m=>{ if(FARMADATI[m].ean) FARMADATI_EAN[FARMADATI[m].ean]=m; });
+function farmadatiLookup(code){        // → {minsan, name, cat, atc, ean?} | null   (nel prodotto: query sul mirror Postgres)
+  let m=null;
+  if(code.length===13 && FARMADATI_EAN[code]) m=FARMADATI_EAN[code];
+  else if(FARMADATI[code]) m=code;
+  else if(code.length<9 && code.length>=5 && FARMADATI[code.padStart(9,'0')]) m=code.padStart(9,'0');
+  return m ? Object.assign({minsan:m}, FARMADATI[m]) : null;
+}
+function createProduct(codes,name,cat,src){   // src: 'farmadati' | 'park'
+  const pid='n'+codes[0];
+  if(!PRODUCTS[pid]){ PRODUCTS[pid]={name,cat,codes:codes.slice(),src}; codes.forEach(c=>CODE2ID[c]=pid); }
+  return pid;
+}
 function ean13(base12){let s=0;for(let i=0;i<12;i++)s+=(+base12[i])*(i%2?3:1);return base12+((10-s%10)%10);}
 
 // deterministic seed generator: brand roots × variant templates -> realistic distinct SKUs
@@ -503,6 +534,12 @@ function renderHome(m){
       m.appendChild(b);
     });
   }
+  const parked=Object.keys(PRODUCTS).filter(k=>PRODUCTS[k].src==='park').length;
+  if(parked){
+    const d=document.createElement('div');d.className='emptybox';d.style.cssText='background:var(--err-bg);border-color:var(--err);color:#8a261b;margin-top:10px';
+    d.innerHTML='<b>'+parked+'</b> '+(parked===1?'codice parcheggiato':'codici parcheggiati')+' senza anagrafica: da completare a desktop.';
+    m.appendChild(d);
+  }
   if(actions.length){
     const h=document.createElement('h2');h.className='sec';h.textContent='Attività recente';h.style.marginTop='16px';m.appendChild(h);
     actions.slice(0,6).forEach(a=>{
@@ -523,6 +560,7 @@ function productRow(pl,r){
   const p=PRODUCTS[pl.pid]; const dup=ripianiOf(pl.pid).length>1;
   const row=document.createElement('div');row.className='pcard';
   row.innerHTML='<div class="pcard-top"><div class="pinfo"><div class="nm">'+p.name+'</div><div class="cd">'+p.codes[0]+(p.codes[1]?' · EAN '+p.codes[1]:'')+'</div></div>'+
+    (p.src==='park'?'<span class="role park">da completare</span>':p.src==='farmadati'?'<span class="role fd">nuova</span>':'')+
     (dup?'<span class="role '+(pl.role==='prin'?'prin':'')+'">'+(pl.role==='prin'?'principale':'duplicato')+'</span>':'')+
     '</div><div class="pcard-acts"></div>';
   const acts=row.querySelector('.pcard-acts');
@@ -535,6 +573,53 @@ function productRow(pl,r){
 }
 function ripianiDi(scaf){ return Object.keys(RIPIANI).filter(r=>RIPIANI[r]===scaf); }
 const openAcc=new Set();   // ripiani espansi nella vista scaffale
+
+/* =========================================================================
+   DATI DA dati.xlsx (opzionale): se presente e con almeno un prodotto, sostituisce i dati integrati
+   ========================================================================= */
+let DATI_SRC='demo integrata';
+function applyDati(sh){
+  const norm=v=>String(v==null?'':v).trim();
+  const codeNorm=c=>{c=norm(c); if(/^\d+$/.test(c)&&c.length<9) c=c.padStart(9,'0'); return c;};
+  const P=(sh.Prodotti||[]).filter(r=>norm(r.MINSAN)); if(!P.length) return null;
+  [SCAFFALI,RIPIANI,PRODUCTS,CODE2ID,FARMADATI,FARMADATI_EAN].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));
+  PLC.length=0; actions.length=0; openAcc.clear(); pendOp=null;
+  const catName={}; (sh.Categorie||[]).forEach(r=>{ if(norm(r.Codice)) catName[norm(r.Codice).toUpperCase()]=norm(r.Nome); });
+  const catLabel=c=>{ c=norm(c).toUpperCase(); return c ? (catName[c]?c+' - '+catName[c]:c) : 'W - Da classificare'; };
+  let scart=0;
+  (sh.Scaffali||[]).forEach(r=>{ const c=norm(r.Scaffale).toUpperCase(); if(c) SCAFFALI[c]=norm(r.Nome)||c; });
+  (sh.Ripiani||[]).forEach(r=>{ const c=norm(r.Ripiano).toUpperCase(), sc=norm(r.Scaffale).toUpperCase(); if(c&&SCAFFALI[sc]) RIPIANI[c]=sc; else if(c){scart++;console.warn('Ripiano scartato',c,sc);} });
+  let nA=0,nF=0;
+  P.forEach(r=>{
+    const m=codeNorm(r.MINSAN), e=norm(r.EAN), name=norm(r.Descrizione)||m, cat=catLabel(r.Categoria), atc=norm(r.ATC);
+    if(norm(r.Origine).toLowerCase()==='farmadati'){ FARMADATI[m]={name,cat,atc}; if(e){FARMADATI[m].ean=e;FARMADATI_EAN[e]=m;} nF++; }
+    else { const pid='x'+m; PRODUCTS[pid]={name,cat,codes:e?[m,e]:[m]}; PRODUCTS[pid].codes.forEach(c=>CODE2ID[c]=pid); nA++; }
+  });
+  let nC=0;
+  (sh.Collocazioni||[]).forEach(r=>{
+    const pid=CODE2ID[codeNorm(r.MINSAN)], rp=norm(r.Ripiano).toUpperCase();
+    if(!pid||!RIPIANI[rp]||PLC.some(p=>p.pid===pid&&p.r===rp)){ scart++; console.warn('Collocazione scartata',r); return; }
+    PLC.push({pid,r:rp,role:norm(r.Ruolo).toLowerCase()==='duplicato'?'sub':'prin'}); nC++;
+  });
+  // coerenza: un solo "prin" per prodotto
+  const seen={}; PLC.forEach(pl=>{ if(pl.role==='prin'){ if(seen[pl.pid]) pl.role='sub'; seen[pl.pid]=1; } });
+  PLC.forEach(pl=>{ if(!seen[pl.pid]){ pl.role='prin'; seen[pl.pid]=1; } });
+  return {prodotti:nA, farmadati:nF, collocazioni:nC, scartate:scart};
+}
+async function loadDati(){
+  const el=$('gateData');
+  try{
+    if(!window.XLSX) throw new Error('libreria XLSX assente');
+    const res=await fetch('dati.xlsx',{cache:'no-store'}); if(!res.ok) throw new Error('dati.xlsx '+res.status);
+    const wb=XLSX.read(await res.arrayBuffer(),{type:'array'});
+    const S=n=>wb.Sheets[n]?XLSX.utils.sheet_to_json(wb.Sheets[n],{raw:false,defval:''}):[];
+    const info=applyDati({Scaffali:S('Scaffali'),Ripiani:S('Ripiani'),Prodotti:S('Prodotti'),Collocazioni:S('Collocazioni'),Categorie:S('Categorie')});
+    if(!info) throw new Error('foglio Prodotti vuoto');
+    DATI_SRC='dati.xlsx';
+    el.innerHTML='dati: <b>dati.xlsx</b> · '+info.prodotti+' in anagrafica · '+info.farmadati+' Farmadati · '+info.collocazioni+' collocazioni'+(info.scartate?' · <b>'+info.scartate+' righe scartate</b>':'');
+  }catch(e){ el.textContent='dati: demo integrata ('+(e&&e.message?e.message:e)+')'; }
+}
+const datiReady=loadDati();
 
 function renderScaffale(m,scaf){
   m.innerHTML='<div class="navbar"><button class="up" id="navUp">‹ Tutti gli scaffali</button></div>'+
@@ -590,11 +675,33 @@ function openProductCard(code){
   wrap.onclick=e=>{if(e.target===wrap)closeAll();};
 
   if(!pid){
-    FX.err();
-    sh.innerHTML='<div class="grip"></div><div class="pname">Prodotto sconosciuto</div>'+
-      '<div class="pcode"><span>codice</span> '+code+'</div>'+
-      '<div class="status unknown">Non presente in anagrafica. Da registrare a desktop (l\u2019app mobile non crea referenze).</div>'+
-      '<div class="sheet-foot"><button class="close">Chiudi</button><button class="rescan">⌖&nbsp; Scansiona</button></div>';
+    const fd=farmadatiLookup(code);
+    const here=(view.name==='ripiano')?view.code:null;
+    if(fd){
+      FX.nav();
+      sh.innerHTML='<div class="grip"></div><div class="pname">'+fd.name+'</div>'+
+        '<div class="pcat">'+fd.cat+' · ATC '+fd.atc+'</div><div class="pcode"><span>MINSAN</span> '+fd.minsan+(fd.ean&&fd.ean!==code?' <span>EAN</span> '+fd.ean:'')+(code!==fd.minsan?' <span>letto</span> '+code:'')+'</div>'+
+        '<div class="status unplaced">Trovato in <b>Farmadati</b>, non ancora in anagrafica. Con l\u2019aggiunta la referenza viene creata con nome e categoria Farmadati.</div>'+
+        '<h4>Aggiungi</h4>'+
+        (here?'<button class="bigbtn add" data-fdhere="'+here+'">Aggiungi qui — '+here+'</button>':'')+
+        '<button class="bigbtn ghost" data-fdscan="1">Aggiungi — spara ripiano di destinazione</button>'+
+        '<div class="sheet-foot"><button class="close">Chiudi</button><button class="rescan">⌖&nbsp; Scansiona</button></div>';
+      const mk=()=>createProduct([fd.minsan].concat(fd.ean?[fd.ean]:[]).concat(code!==fd.minsan&&code!==fd.ean?[code]:[]), fd.name, fd.cat, 'farmadati');
+      const hb=sh.querySelector('[data-fdhere]'); if(hb)hb.onclick=()=>{const np=mk();closeAll();doAdd(np,hb.dataset.fdhere);};
+      sh.querySelector('[data-fdscan]').onclick=()=>{const np=mk();startAdd(np);closeAll();};
+    } else {
+      FX.err();
+      sh.innerHTML='<div class="grip"></div><div class="pname">Codice sconosciuto</div>'+
+        '<div class="pcode"><span>codice</span> '+code+'</div>'+
+        '<div class="status unknown">Non in anagrafica e non in Farmadati. Puoi <b>parcheggiarlo</b> su un ripiano: la posizione viene registrata adesso, nome e categoria si completano a desktop.</div>'+
+        '<h4>Parcheggia</h4>'+
+        (here?'<button class="bigbtn add" data-pkhere="'+here+'">Parcheggia qui — '+here+'</button>':'')+
+        '<button class="bigbtn ghost" data-pkscan="1">Parcheggia — spara ripiano di destinazione</button>'+
+        '<div class="sheet-foot"><button class="close">Chiudi</button><button class="rescan">⌖&nbsp; Scansiona</button></div>';
+      const mk=()=>createProduct([code], 'DA COMPLETARE · '+code, 'W - Da classificare', 'park');
+      const hb=sh.querySelector('[data-pkhere]'); if(hb)hb.onclick=()=>{const np=mk();closeAll();doAdd(np,hb.dataset.pkhere);};
+      sh.querySelector('[data-pkscan]').onclick=()=>{const np=mk();startAdd(np);closeAll();};
+    }
     sh.querySelector('.close').onclick=closeAll; sh.querySelector('.rescan').onclick=()=>{closeAll();openScan();};
     document.body.appendChild(wrap); return;
   }
@@ -822,12 +929,13 @@ $('tabHid').onclick=()=>{scanPref='hid';setScanTab('hid');};
 $('tabCam').onclick=()=>{scanPref='cam';setScanTab('cam');};
 $('scanIn').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); scanSubmit(); } });
 
-$('btnEntra').onclick=()=>{
+$('btnEntra').onclick=()=>{ datiReady.then(enterApp); };
+function enterApp(){
   operator='Alessandro';$('opName').textContent=operator;
   try{ac().resume();tone([{f:700,d:.04,g:.05}]);}catch(e){}
   $('gate').classList.add('hidden');
   view={name:'home'};stack=[];render();updateUndo();
-};
+}
 
 /* deterministic driving API (screenshots / testing) */
 window.DEMO={
