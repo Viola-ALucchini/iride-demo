@@ -69,9 +69,11 @@ header .pv{margin-left:auto;font-size:11px;opacity:.72;text-align:right;line-hei
 /* breadcrumb / crumbs */
 .crumbs{flex:0 0 auto;background:var(--berry);color:#fff;padding:8px 12px;display:flex;
   align-items:center;gap:8px;font-size:13px;min-height:38px}
-.crumbs .back{background:rgba(255,255,255,.16);border:none;color:#fff;border-radius:8px;
-  padding:6px 10px;font-weight:700;font-size:13px}
-.crumbs .back:active{background:rgba(255,255,255,.3)}
+.crumbs .back,.crumbs .home{background:rgba(255,255,255,.16);border:none;color:#fff;border-radius:8px;
+  padding:6px 10px;font-weight:700;font-size:13px;flex:0 0 auto}
+.crumbs .back:active,.crumbs .home:active{background:rgba(255,255,255,.3)}
+.crumbs .home{margin-left:auto;background:#fff;color:var(--berry)}
+.crumbs .path{flex:1;min-width:0}
 .crumbs .path{opacity:.92;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* pending banner (move/add awaiting destination) */
@@ -179,8 +181,10 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
 .destbtn .go{margin-left:auto;font-size:13px;font-weight:700;color:var(--berry)}
 .plrow{display:flex;gap:8px;align-items:stretch;margin-bottom:6px}
 .plrow .destbtn{flex:1;margin:0}
-.plrow .rowmove{flex:0 0 auto;border:none;border-radius:12px;background:var(--move);color:#fff;font-weight:800;font-size:14px;padding:0 16px}
-.plrow .rowmove:active{filter:brightness(.92)}
+.plrow .rowmove,.plrow .rowrem{flex:0 0 auto;border:none;border-radius:12px;color:#fff;font-weight:800;font-size:14px;padding:0 14px}
+.plrow .rowmove{background:var(--move)}
+.plrow .rowrem{background:var(--err)}
+.plrow .rowmove:active,.plrow .rowrem:active{filter:brightness(.92)}
 .bigbtn{width:100%;border:none;border-radius:13px;font-weight:800;font-size:16px;padding:15px;color:#fff;margin-top:6px}
 .bigbtn.add{background:var(--add)} .bigbtn.add:active{filter:brightness(.92)}
 .bigbtn.move{background:var(--move)}
@@ -276,7 +280,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
   <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
   <button class="entra" id="btnEntra">ENTRA</button>
-  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v6</b></div>
+  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v7</b></div>
 </div>
 
 <header>
@@ -287,6 +291,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
 <div class="crumbs">
   <button class="back hidden" id="btnBack">‹ Indietro</button>
   <div class="path" id="crumb">Home</div>
+  <button class="home hidden" id="btnHome">⌂ Home</button>
 </div>
 
 <div class="pending hidden" id="pending">
@@ -457,6 +462,7 @@ let lastScan=null;           // {type,code,out} for the scan console
 
 function go(v,push=true){ if(push && view) stack.push(view); view=v; render(); }
 function back(){ if(stack.length){ view=stack.pop(); render(); } }
+function goHome(){ FX.nav(); stack=[]; view={name:'home'}; render(); }
 
 /* =========================================================================
    RENDER
@@ -470,6 +476,7 @@ function render(){
 }
 function renderCrumb(){
   $('btnBack').classList.toggle('hidden', stack.length===0);
+  $('btnHome').classList.toggle('hidden', view.name==='home');
   let path='Home';
   if(view.name==='scaffale') path='Home › '+view.code+' · '+SCAFFALI[view.code];
   else if(view.name==='ripiano') path='Home › '+RIPIANI[view.code]+' › '+view.code;
@@ -623,7 +630,7 @@ function openProductCard(code){
     html+='<h4>'+(dup?'Dove si trova — scegli quale posizione spostare':'Dove si trova')+'</h4>';
     places.forEach(pl=>{
       html+='<div class="plrow"><button class="destbtn" data-goto="'+pl.r+'"><div><div class="r">'+pl.r+'</div><div class="rr">scaffale '+RIPIANI[pl.r]+' · '+(pl.role==='prin'?'principale':'duplicato')+'</div></div><span class="go">Apri ›</span></button>'+
-        '<button class="rowmove" data-move="'+pl.r+'">Sposta</button></div>';
+        '<button class="rowrem" data-rem="'+pl.r+'">Togli</button><button class="rowmove" data-move="'+pl.r+'">Sposta</button></div>';
     });
     html+='<h4>Azioni</h4>';
     if(view.name==='ripiano' && !places.some(pl=>pl.r===view.code)){
@@ -639,6 +646,7 @@ function openProductCard(code){
   sh.querySelectorAll('[data-goto]').forEach(b=>b.onclick=()=>{closeAll();FX.open();openRipiano(b.dataset.goto);});
   const hb=sh.querySelector('[data-here]'); if(hb)hb.onclick=()=>{closeAll();doAdd(pid,hb.dataset.here);};
   sh.querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>{startMove(pid,b.dataset.move);closeAll();});
+  sh.querySelectorAll('[data-rem]').forEach(b=>b.onclick=()=>{closeAll();doRemove(pid,b.dataset.rem);});
   const mh=sh.querySelector('[data-movehere]'); if(mh)mh.onclick=()=>{closeAll();doMove(pid,places[0].r,mh.dataset.movehere);};
   const ae=sh.querySelector('[data-addelse]'); if(ae)ae.onclick=()=>{startAdd(pid);closeAll();};
   sh.querySelector('.close').onclick=closeAll;
@@ -838,6 +846,7 @@ function startCamera(){
 function stopCamera(){ hideConfirm(); camPaused=false; camProposed=''; if(camTimer){clearInterval(camTimer);camTimer=null;} if(camStream){camStream.getTracks().forEach(function(t){t.stop();});camStream=null;} camDet=null; }
 
 $('btnBack').onclick=back;
+$('btnHome').onclick=goHome;
 $('pendingCancel').onclick=cancelPending;
 $('ccOk').onclick=confirmCam;
 $('ccNo').onclick=resumeCam;
