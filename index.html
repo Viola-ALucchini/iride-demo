@@ -223,6 +223,17 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
 .cam-frame video{width:100%;height:100%;object-fit:cover}
 .cam-reticle{position:absolute;left:12%;right:12%;top:34%;bottom:34%;border:3px solid rgba(255,255,255,.85);border-radius:10px;
   box-shadow:0 0 0 2000px rgba(0,0,0,.25)}
+.cam-confirm{margin-top:10px;background:#fff;border:2px solid var(--berry);border-radius:13px;padding:12px 14px}
+.cam-confirm .cc-top{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.cam-confirm .cc-code{font-size:22px;font-weight:800;letter-spacing:.06em;color:var(--berry-ink);font-variant-numeric:tabular-nums}
+.cam-confirm .cc-name{font-size:15px;font-weight:700;color:var(--berry-ink);line-height:1.3}
+.cam-confirm .cc-action{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.4}
+.cam-confirm .cc-action.err{color:var(--err);font-weight:700}
+.cam-confirm .cc-btns{display:flex;gap:10px;margin-top:12px}
+.cam-confirm .cc-btns button{flex:1;padding:14px 8px;border-radius:12px;font-size:15px;font-weight:800;letter-spacing:.08em;border:2px solid var(--berry);cursor:pointer}
+.cam-confirm #ccOk{background:var(--berry);color:#fff}
+.cam-confirm #ccNo{background:#fff;color:var(--berry)}
+.cam-frame.paused video{filter:brightness(.45)}
 .scan-log-h{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:14px 2px 8px}
 .scan-log{display:flex;flex-direction:column}
 .scan-empty{color:var(--muted);font-size:13px;padding:8px 2px}
@@ -293,6 +304,12 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
     <div class="scan-pane hidden" id="paneCam">
       <div class="cam-frame"><video id="camVideo" playsinline muted></video><div class="cam-reticle"></div></div>
       <div class="scan-hint" id="camMsg">Inquadra il codice a barre nel riquadro.</div>
+      <div class="cam-confirm hidden" id="camConfirm">
+        <div class="cc-top"><span class="tag" id="ccTag">?</span><span class="cc-code" id="ccCode">—</span></div>
+        <div class="cc-name" id="ccName"></div>
+        <div class="cc-action" id="ccAction"></div>
+        <div class="cc-btns"><button id="ccNo" type="button">RIPETI</button><button id="ccOk" type="button">CONFERMA</button></div>
+      </div>
     </div>
     <div class="scan-log-h">LETTURE</div>
     <div class="scan-log" id="scanLog"><div class="scan-empty">Nessuna lettura ancora.</div></div>
@@ -667,7 +684,53 @@ let gunTO=null;
 function gunBlink(){const g=$('gunpill');g.classList.add('live');clearTimeout(gunTO);gunTO=setTimeout(()=>g.classList.remove('live'),400);}
 
 /* ---- scan drawer: external HID reader (default) + phone camera ---- */
-let camStream=null, camTimer=null, camDet=null;
+let camStream=null, camTimer=null, camDet=null, camCanvas=null;
+let camPaused=false, camPrev='', camHits=0, camProposed='';
+const CAM_TICK=250, CAM_STABLE=2;              // 2 letture identiche consecutive (~0,5 s) prima di proporre
+const RET={l:.12,r:.12,t:.34,b:.34};           // deve coincidere con .cam-reticle in CSS
+function reticleROI(v){
+  const W=v.clientWidth,H=v.clientHeight,vw=v.videoWidth,vh=v.videoHeight; if(!W||!H||!vw||!vh) return null;
+  const sc=Math.max(W/vw,H/vh);                // object-fit:cover
+  const ox=(vw*sc-W)/2, oy=(vh*sc-H)/2;        // parte del video tagliata dal cover
+  const x=Math.round((RET.l*W+ox)/sc), y=Math.round((RET.t*H+oy)/sc);
+  const w=Math.round((1-RET.l-RET.r)*W/sc), h=Math.round((1-RET.t-RET.b)*H/sc);
+  return {x:Math.max(0,x),y:Math.max(0,y),w:Math.min(w,vw-x),h:Math.min(h,vh-y)};
+}
+function previewOf(raw){
+  const r=classify(raw), map={scaffale:['SC','tag-sc'],ripiano:['RP','tag-rp'],product:['PROD','tag-pr']};
+  const tag=map[r.type]||['?','tag-x']; let name='', action='', err=false;
+  if(pendOp){
+    const pn=PRODUCTS[pendOp.pid]?PRODUCTS[pendOp.pid].name:pendOp.pid;
+    if(r.type==='ripiano'){
+      if(RIPIANI[r.code]){ name='Ripiano '+r.code+' · '+SCAFFALI[RIPIANI[r.code]]; action=(pendOp.op==='add'?'AGGIUNGE ':'SPOSTA ')+pn+' in '+r.code; }
+      else { name='Ripiano inesistente'; err=true; action='Nessuna azione'; }
+    } else { name='Serve un ripiano di destinazione'; err=true; action='Il codice letto non è un ripiano'; }
+    return {r,tag,name,action,err};
+  }
+  switch(r.type){
+    case 'scaffale': if(SCAFFALI[r.code]){name='Scaffale '+SCAFFALI[r.code];action='Apre lo scaffale';} else {name='Scaffale sconosciuto';err=true;action='Apre una scheda vuota';} break;
+    case 'ripiano':  if(RIPIANI[r.code]){name='Ripiano '+r.code+' · '+SCAFFALI[RIPIANI[r.code]];action='Apre il ripiano';} else {name='Ripiano inesistente';err=true;action='Apre una scheda vuota';} break;
+    case 'product':  { const pid=resolve(r.code);
+      if(!pid){ name='Prodotto non in anagrafica'; err=true; action='Nessuna azione: si registra a desktop'; }
+      else { const rp=ripianiOf(pid); name=PRODUCTS[pid].name;
+        action = rp.length ? 'A scaffale su '+rp.map(x=>x.r+(x.role==='sub'?' (sub)':'')).join(' + ') : 'Non a scaffale → proporrà l\u2019aggiunta'; } } break;
+    case 'empty':    name='Lettura vuota'; err=true; break;
+    default:         name='Formato non valido'; err=true; action='Nessuna azione';
+  }
+  return {r,tag,name,action,err};
+}
+function proposeCam(raw){
+  camPaused=true; camProposed=raw; FX.nav();
+  const p=previewOf(raw);
+  $('ccTag').className='tag '+p.tag[1]; $('ccTag').textContent=p.tag[0];
+  $('ccCode').textContent=p.r.code||'—'; $('ccName').textContent=p.name;
+  const a=$('ccAction'); a.textContent=p.action; a.className='cc-action'+(p.err?' err':'');
+  $('camConfirm').classList.remove('hidden'); $('camMsg').textContent='Verifica e conferma, oppure ripeti la lettura.';
+  const f=document.querySelector('.cam-frame'); if(f) f.classList.add('paused');
+}
+function hideConfirm(){ $('camConfirm').classList.add('hidden'); const f=document.querySelector('.cam-frame'); if(f) f.classList.remove('paused'); }
+function resumeCam(){ hideConfirm(); camProposed=''; camPrev=''; camHits=0; $('camMsg').textContent='Inquadra il codice…'; setTimeout(function(){camPaused=false;},400); }
+function confirmCam(){ const raw=camProposed; if(!raw) return; hideConfirm(); dispatch(raw); camProposed=''; camPrev=''; camHits=0; $('camMsg').textContent='Inquadra il codice…'; setTimeout(function(){camPaused=false;},700); }
 function openScan(){ $('scanWrap').classList.remove('hidden'); setScanTab('hid'); }
 function closeScan(){ $('scanWrap').classList.add('hidden'); stopCamera(); }
 function setScanTab(tab){
@@ -690,14 +753,21 @@ function startCamera(){
   catch(e){ msg.textContent='Formati non supportati dalla fotocamera: usa il lettore esterno.'; return; }
   navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(st){
     camStream=st; v.srcObject=st; try{v.play();}catch(e){} msg.textContent='Inquadra il codice…';
-    let last='', lastT=0;
+    camPaused=false; camPrev=''; camHits=0; hideConfirm();
     camTimer=setInterval(function(){
-      if(!camDet||v.readyState<2) return;
-      camDet.detect(v).then(function(codes){
-        if(codes&&codes.length){ const raw=codes[0].rawValue, now=Date.now();
-          if(raw&&(raw!==last||now-lastT>1500)){ last=raw; lastT=now; FX.add(); dispatch(raw); } }
+      if(!camDet||camPaused||v.readyState<2) return;
+      const roi=reticleROI(v); if(!roi) return;
+      if(!camCanvas) camCanvas=document.createElement('canvas');
+      camCanvas.width=roi.w; camCanvas.height=roi.h;
+      camCanvas.getContext('2d').drawImage(v,roi.x,roi.y,roi.w,roi.h,0,0,roi.w,roi.h);
+      camDet.detect(camCanvas).then(function(codes){
+        if(camPaused) return;
+        if(!codes||!codes.length){ camPrev=''; camHits=0; return; }
+        const raw=codes[0].rawValue; if(!raw) return;
+        if(raw===camPrev){ camHits++; } else { camPrev=raw; camHits=1; }
+        if(camHits>=CAM_STABLE) proposeCam(raw);
       }).catch(function(){});
-    },350);
+    },CAM_TICK);
   }).catch(function(err){
     const n=err&&err.name;
     if(n==='NotAllowedError') msg.innerHTML='Permesso fotocamera negato o bloccato. Tocca il <b>lucchetto</b> accanto all\u2019indirizzo → Autorizzazioni → Fotocamera → Consenti, poi riprova. Oppure usa il lettore esterno.';
@@ -706,10 +776,12 @@ function startCamera(){
     else msg.textContent='Impossibile avviare la fotocamera ('+(n||'errore')+'). Usa il lettore esterno.';
   });
 }
-function stopCamera(){ if(camTimer){clearInterval(camTimer);camTimer=null;} if(camStream){camStream.getTracks().forEach(function(t){t.stop();});camStream=null;} camDet=null; }
+function stopCamera(){ hideConfirm(); camPaused=false; camProposed=''; if(camTimer){clearInterval(camTimer);camTimer=null;} if(camStream){camStream.getTracks().forEach(function(t){t.stop();});camStream=null;} camDet=null; }
 
 $('btnBack').onclick=back;
 $('pendingCancel').onclick=cancelPending;
+$('ccOk').onclick=confirmCam;
+$('ccNo').onclick=resumeCam;
 $('btnScan').onclick=openScan;
 $('scanClose').onclick=closeScan;
 $('scanScrim').onclick=closeScan;
