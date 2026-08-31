@@ -323,7 +323,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
   <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
   <button class="entra" id="btnEntra">ENTRA</button>
-  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v23</b></div>
+  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v24</b></div>
   <div class="pv" id="gateData">dati: caricamento…</div>
 </div>
 
@@ -635,7 +635,7 @@ function renderHome(m){
   m.appendChild(toolsSection());
 }
 function emptyAll(){
-  [SCAFFALI,RIPIANI,ORD,PRODUCTS,CODE2ID].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));
+  [SCAFFALI,RIPIANI,ORD,PRODUCTS,CODE2ID].forEach(o=>Object.keys(o).forEach(k=>delete o[k])); BURNED.clear();
   PLC.length=0; actions.length=0; openAcc.clear(); pendOp=null; batch=null; lastOp=null; reorderScaf=null; scaffaliLoaded=true; DATI_SRC='vuoto';
   updateBatchBar(); closeScan(); const g=$('gateData'); if(g) g.textContent='dati: struttura vuota';
   goHome(); updateUndo(); toast('Struttura vuota: nessuno scaffale, ripiano o prodotto','err');
@@ -645,15 +645,13 @@ function openReset(){
   const sh=document.createElement('div');sh.className='sheet';wrap.appendChild(sh);
   const closeAll=()=>wrap.remove(); wrap.onclick=e=>{if(e.target===wrap)closeAll();};
   sh.innerHTML='<div class="grip"></div><div class="pname">Ripristina</div>'+
-    '<div class="status unplaced">Le modifiche fatte sul telefono vivono solo in questa sessione. Scegli da dove ripartire.</div>'+
-    '<button class="bigbtn add" id="rsData">Ricarica i dati iniziali (dati.xlsx / demo)</button>'+
-    '<button class="bigbtn ghost" id="rsTools" style="font-size:13px">Strumenti di prova…</button>'+
-    '<button class="bigbtn ghost hidden" id="rsEmpty" style="border-color:var(--err);color:var(--err)">Struttura vuota — zero scaffali, ripiani e prodotti</button>'+
+    '<div class="status unknown"><b>Azzera tutto</b>: nessuno scaffale, ripiano, prodotto o collocazione, compresi quelli iniziali; le etichette bruciate tornano utilizzabili. Le modifiche di questa sessione vanno perse.</div>'+
+    '<button class="bigbtn" id="rsEmpty" style="background:var(--err);color:#fff">Azzera tutto</button>'+
+    '<button class="bigbtn ghost" id="rsData">Ricarica invece i dati iniziali (dati.xlsx / demo)</button>'+
     '<div class="sheet-foot"><button class="close">Chiudi</button></div>';
   sh.querySelector('.close').onclick=closeAll;
+  sh.querySelector('#rsEmpty').onclick=()=>{ if(confirm('Azzerare TUTTO? Scaffali, ripiani, prodotti e collocazioni, compresi quelli iniziali.')){ closeAll(); emptyAll(); } };
   sh.querySelector('#rsData').onclick=()=>{ if(confirm('Ricaricare i dati iniziali? Il lavoro di questa sessione va perso.')) location.reload(); };
-  sh.querySelector('#rsTools').onclick=()=>{ sh.querySelector('#rsEmpty').classList.remove('hidden'); sh.querySelector('#rsTools').classList.add('hidden'); };
-  sh.querySelector('#rsEmpty').onclick=()=>{ if(confirm('Svuotare TUTTO (scaffali, ripiani, prodotti, collocazioni)? Serve solo per provare da zero.')){ closeAll(); emptyAll(); } };
   document.body.appendChild(wrap);
 }
 function appendReset(m){
@@ -687,6 +685,9 @@ const openAcc=new Set();   // ripiani espansi nella vista scaffale
    STRUTTURA: scaffali, ripiani, ordine dei ripiani (creazione da mobile)
    ========================================================================= */
 const ORD = {};   // scaffale -> [ripiano, ...] nell'ordine fisico (alto → basso)
+const BURNED = new Set();   // codici di scaffali/ripiani eliminati: l'etichetta non è più utilizzabile
+function isBurned(code){ return BURNED.has(code); }
+function burnedToast(code){ FX.err(); toast('Etichetta '+code+' eliminata: non è più utilizzabile','err'); }
 function linkRipiano(r,scaf,pos){
   const old=RIPIANI[r]; if(old&&ORD[old]){ const i=ORD[old].indexOf(r); if(i>=0) ORD[old].splice(i,1); }
   RIPIANI[r]=scaf; ORD[scaf]=ORD[scaf]||[];
@@ -710,6 +711,7 @@ function openNewScaffale(code){
   sh.querySelector('#nsGo').onclick=()=>{
     const c=sh.querySelector('#nsCode').value.trim().toUpperCase(), n=sh.querySelector('#nsName').value.trim();
     if(!CODE_S.test(c)){ FX.err(); toast('Codice scaffale non valido: S + 3–8 cifre','err'); return; }
+    if(isBurned(c)){ burnedToast(c); return; }
     if(SCAFFALI[c]){ FX.err(); toast('Scaffale '+c+' esiste già','err'); closeAll(); openScaffale(c); return; }
     createScaffale(c,n); FX.add(); toast('Scaffale '+c+' creato','add'); closeAll(); go({name:'scaffale',code:c});
   };
@@ -732,6 +734,7 @@ function openNewRipiano(code){
   sh.querySelector('#nrGo').onclick=()=>{
     const c=sh.querySelector('#nrCode').value.trim().toUpperCase(), sc=sh.querySelector('#nrScaf').value;
     if(!CODE_R.test(c)){ FX.err(); toast('Codice ripiano non valido: R + 3–8 cifre','err'); return; }
+    if(isBurned(c)){ burnedToast(c); return; }
     if(RIPIANI[c]){ FX.err(); toast('Ripiano '+c+' esiste già in '+RIPIANI[c],'err'); closeAll(); openRipiano(c); return; }
     linkRipiano(c,sc); FX.add(); toast('Ripiano '+c+' creato in '+sc,'add'); closeAll(); openAcc.add(c); go({name:'scaffale',code:sc});
   };
@@ -758,7 +761,7 @@ function openTools(){
     '<button class="tool c-new" data-t="new"><span class="ico">'+ICONS.newShelf+'</span><span class="lbl">Nuovo scaffale<small>codice + nome</small></span></button>'+
     '<button class="tool c-struct" data-t="struct"><span class="ico">'+ICONS.struct+'</span><span class="lbl">Scaffali e ripiani in serie<small>leggi scaffale, poi i ripiani</small></span></button>'+
     '<button class="tool c-empty" data-t="empty"><span class="ico">'+ICONS.empty+'</span><span class="lbl">Svuota ripiani<small>tutto da un ripiano all\u2019altro</small></span></button>'+
-    '<button class="tool c-reset" data-t="reset"><span class="ico">'+ICONS.reset+'</span><span class="lbl">Ripristina<small>dati iniziali / strumenti di prova</small></span></button></div>'+
+    '<button class="tool c-reset" data-t="reset"><span class="ico">'+ICONS.reset+'</span><span class="lbl">Ripristina<small>azzera tutto</small></span></button></div>'+
     '<div class="sheet-foot"><button class="close">Chiudi</button></div>';
   sh.querySelector('[data-t="new"]').onclick=()=>{closeAll();openNewScaffale('');};
   sh.querySelector('[data-t="struct"]').onclick=()=>{closeAll();startBatch('struct',null);};
@@ -782,9 +785,10 @@ function openMenu(kind,code){
     items.push(['⌖ Ordina leggendo',()=>startBatch('struct',code),'Leggi le etichette dei ripiani dall\u2019alto in basso. Nuovi: creati. Di altri scaffali: spostati qui.']);
     items.push(['⠿ Ordina a mano',()=>{ reorderScaf=code; FX.nav(); render(); }]);
     items.push(['✎ Rinomina scaffale',()=>openRenameScaffale(code)]);
-    items.push(['✕ Elimina scaffale',()=>openDeleteScaffale(code),null,true]);
+    items.push(['✕ Elimina scaffale',()=>openDeleteScaffale(code),'Le etichette dello scaffale e dei ripiani vengono bruciate.',true]);
   } else {
     items.push(['⇉ Svuota in un altro ripiano…',()=>startBatch('movecont',code),'Leggi solo il ripiano di destinazione: tutto il contenuto di '+code+' passa lì.']);
+    items.push(['✕ Elimina ripiano',()=>openDeleteRipiano(code),'L\u2019etichetta viene bruciata.',true]);
   }
   const title={home:'Struttura e strumenti',scaffale:'Scaffale '+code,ripiano:'Ripiano '+code}[kind];
   sh.innerHTML='<div class="grip"></div><div class="pname">'+title+'</div><div class="pcat">Attività non quotidiane</div>'+
@@ -804,6 +808,27 @@ function openRenameScaffale(scaf){
   sh.querySelector('#rnGo').onclick=()=>{ const n=sh.querySelector('#rnName').value.trim(); if(!n){FX.err();toast('Il nome non può essere vuoto','err');return;} SCAFFALI[scaf]=n; FX.add(); toast('Rinominato: '+n,'add'); closeAll(); render(); };
   document.body.appendChild(wrap); try{ const f=sh.querySelector('#rnName'); f.focus(); f.select(); }catch(e){}
 }
+function deleteRipianoData(r){
+  for(let i=PLC.length-1;i>=0;i--) if(PLC[i].r===r) PLC.splice(i,1);
+  const sc=RIPIANI[r]; if(sc&&ORD[sc]){ const k=ORD[sc].indexOf(r); if(k>=0) ORD[sc].splice(k,1); }
+  delete RIPIANI[r]; openAcc.delete(r); BURNED.add(r);
+  for(let i=actions.length-1;i>=0;i--){ const a=actions[i]; if(a.r===r||a.from===r||a.to===r) actions.splice(i,1); }
+  if(lastOp&&(lastOp.r===r||lastOp.to===r)) lastOp=null;
+}
+function openDeleteRipiano(r){
+  const scaf=RIPIANI[r]; const n=onRipiano(r).length;
+  const wrap=document.createElement('div');wrap.className='sheet-wrap';
+  const sh=document.createElement('div');sh.className='sheet';wrap.appendChild(sh);
+  const closeAll=()=>wrap.remove(); wrap.onclick=e=>{if(e.target===wrap)closeAll();};
+  sh.innerHTML='<div class="grip"></div><div class="pname">Elimina ripiano '+r+'</div><div class="pcat">scaffale '+scaf+' · '+SCAFFALI[scaf]+'</div>'+
+    '<div class="status unknown">'+(n?'Ha <b>'+n+' prodotti</b>: restano in anagrafica ma <b>perdono la posizione</b>. Per conservarla, prima <b>Svuota in un altro ripiano</b>. ':'Il ripiano è vuoto. ')+
+    'L\u2019etichetta <b>'+r+'</b> viene <b>bruciata</b>: non sarà più letta né ricreabile, né qui né altrove. Non annullabile con ↶.</div>'+
+    '<button class="bigbtn" id="delGo" style="background:var(--err);color:#fff">Elimina ripiano '+r+(n?' e '+n+' collocazioni':'')+'</button>'+
+    '<div class="sheet-foot"><button class="close">Chiudi</button></div>';
+  sh.querySelector('.close').onclick=closeAll;
+  sh.querySelector('#delGo').onclick=()=>{ deleteRipianoData(r); updateUndo(); FX.rem(); toast('Eliminato '+r+' · etichetta bruciata','err'); closeAll(); go({name:'scaffale',code:scaf}); };
+  document.body.appendChild(wrap);
+}
 function openDeleteScaffale(scaf){
   const rips=ripianiDi(scaf); const nPl=PLC.filter(pl=>rips.indexOf(pl.r)>=0).length;
   const wrap=document.createElement('div');wrap.className='sheet-wrap';
@@ -812,15 +837,14 @@ function openDeleteScaffale(scaf){
   sh.innerHTML='<div class="grip"></div><div class="pname">Elimina '+scaf+' · '+SCAFFALI[scaf]+'</div>'+
     '<div class="status '+(nPl?'unknown':'unplaced')+'">'+(rips.length?'Ha <b>'+rips.length+' ripiani</b> e <b>'+nPl+' collocazioni</b>. ':'Non ha ripiani. ')+
     (nPl?'Eliminando, i '+nPl+' prodotti restano in anagrafica ma <b>perdono la posizione</b>. Se vuoi conservarla, prima sposta il contenuto dei ripiani altrove.':'Ripiani ed etichette non saranno più riconosciuti.')+
-    ' Questa operazione <b>non è annullabile</b> con ↶.</div>'+
+    ' Le etichette <b>'+scaf+'</b>'+(rips.length?' e dei suoi '+rips.length+' ripiani':'')+' vengono <b>bruciate</b>: non saranno più lette né ricreabili. Non annullabile con ↶.</div>'+
     '<button class="bigbtn" id="delGo" style="background:var(--err);color:#fff">Elimina scaffale'+(rips.length?', '+rips.length+' ripiani':'')+(nPl?' e '+nPl+' collocazioni':'')+'</button>'+
     '<div class="sheet-foot"><button class="close">Chiudi</button></div>';
   sh.querySelector('.close').onclick=closeAll;
   sh.querySelector('#delGo').onclick=()=>{
-    for(let i=PLC.length-1;i>=0;i--) if(rips.indexOf(PLC[i].r)>=0) PLC.splice(i,1);
-    rips.forEach(r=>{ delete RIPIANI[r]; openAcc.delete(r); }); delete ORD[scaf]; delete SCAFFALI[scaf];
-    actions.length=0; updateUndo(); lastOp=null; if(reorderScaf===scaf) reorderScaf=null;
-    FX.rem(); toast('Eliminato '+scaf,'err'); closeAll(); scaffaliLoaded=true; goHome();
+    rips.forEach(deleteRipianoData); delete ORD[scaf]; delete SCAFFALI[scaf]; BURNED.add(scaf);
+    updateUndo(); if(reorderScaf===scaf) reorderScaf=null;
+    FX.rem(); toast('Eliminato '+scaf+' · etichette bruciate','err'); closeAll(); scaffaliLoaded=true; goHome();
   };
   document.body.appendChild(wrap);
 }
@@ -1085,6 +1109,7 @@ function updateBatchBar(){
 }
 function batchRead(raw){
   const r=classify(raw); if(r.type==='empty') return;
+  if((r.type==='ripiano'||r.type==='scaffale') && isBurned(r.code)){ burnedToast(r.code); pushScanLog(r,'eliminato'); return; }
   const pname=pid=>PRODUCTS[pid].name;
   let out='';
   if(batch.mode==='movecont'){
@@ -1222,14 +1247,15 @@ function dispatch(raw){
   const r=classify(raw); gunBlink(); const viewBefore=view;
   let out='';
   if(pendOp){
-    if(r.type==='ripiano'){ out = RIPIANI[r.code] ? (pendOp.op==='add'?'aggiunto in '+r.code:'spostato in '+r.code) : 'ripiano inesistente'; completePending(r.code); }
+    if(r.type==='ripiano'&&isBurned(r.code)){ burnedToast(r.code); out='eliminato'; }
+    else if(r.type==='ripiano'){ out = RIPIANI[r.code] ? (pendOp.op==='add'?'aggiunto in '+r.code:'spostato in '+r.code) : 'ripiano inesistente'; completePending(r.code); }
     else if(r.type==='empty'){ return; }
     else { FX.err(); toast('Leggi un ripiano di destinazione (o annulla)','err'); out='serve destinazione'; }
     pushScanLog(r,out); if(view!==viewBefore) closeScan(); return;
   }
   switch(r.type){
-    case 'scaffale': if(SCAFFALI[r.code]){FX.open();openScaffale(r.code);out='scaffale aperto';} else if(!CODE_S.test(r.code)){FX.err();toast('Codice scaffale non valido: '+r.code,'err');out='non valido';} else {FX.nav();openNewScaffale(r.code);out='nuovo?';} break;
-    case 'ripiano':  if(RIPIANI[r.code]){FX.open();openRipiano(r.code);out='ripiano aperto';} else if(!CODE_R.test(r.code)){FX.err();toast('Codice ripiano non valido: '+r.code,'err');out='non valido';} else {FX.nav();openNewRipiano(r.code);out='nuovo?';} break;
+    case 'scaffale': if(isBurned(r.code)){burnedToast(r.code);out='eliminato';} else if(SCAFFALI[r.code]){FX.open();openScaffale(r.code);out='scaffale aperto';} else if(!CODE_S.test(r.code)){FX.err();toast('Codice scaffale non valido: '+r.code,'err');out='non valido';} else {FX.nav();openNewScaffale(r.code);out='nuovo?';} break;
+    case 'ripiano':  if(isBurned(r.code)){burnedToast(r.code);out='eliminato';} else if(RIPIANI[r.code]){FX.open();openRipiano(r.code);out='ripiano aperto';} else if(!CODE_R.test(r.code)){FX.err();toast('Codice ripiano non valido: '+r.code,'err');out='non valido';} else {FX.nav();openNewRipiano(r.code);out='nuovo?';} break;
     case 'product':  { const pid=resolve(r.code); out = !pid?'prodotto sconosciuto':(ripianiOf(pid).length?'a scaffale':'non a scaffale'); openProductCard(r.code); } break;
     case 'empty':    return;
     default:         FX.err(); toast('Formato non valido','err'); out='formato non valido';
