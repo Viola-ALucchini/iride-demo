@@ -1,0 +1,32 @@
+IRIDEShelf — demo installabile (PWA) — pubblicazione su GitHub Pages
+===================================================================
+
+Obiettivo: ottenere un indirizzo https:// da aprire sul Samsung S25 Ultra,
+installare l'app e abilitare la fotocamera. Tutto da browser, gratis.
+
+PASSI (una volta sola)
+1. Vai su https://github.com e crea un account (se non ce l'hai).
+2. In alto a destra: "+" -> "New repository".
+   - Repository name: iride-demo
+   - Visibilità: PUBLIC (obbligatorio per Pages gratis)
+   - "Create repository".
+3. Nella pagina del repo vuoto: link "uploading an existing file".
+   - Trascina TUTTI i file di questa cartella (NON la cartella, i file sciolti):
+     index.html, manifest.webmanifest, sw.js, .nojekyll,
+     icon-192.png, icon-512.png, icon-maskable-512.png, apple-touch-icon.png
+   - In fondo: "Commit changes".
+4. Settings (in alto) -> Pages (menu a sinistra):
+   - Source: "Deploy from a branch"
+   - Branch: main   Cartella: / (root)   -> Save
+5. Aspetta 1-2 minuti, ricarica: appare l'indirizzo
+     https://<tuo-utente>.github.io/iride-demo/
+   Questo e' l'URL da aprire sul telefono.
+
+SUL TELEFONO (una volta)
+6. Apri quell'URL con Chrome sull'S25.
+7. Menu tre puntini -> "Installa app". Apri l'app installata.
+8. Tab "Fotocamera" -> Chrome chiede il permesso -> "Consenti".
+   Inquadra un codice: lo legge e apre il ripiano/scheda.
+
+Da qui in poi l'app parte dal telefono anche OFFLINE e la fotocamera
+funziona: pronta per la dimostrazione in CdA.

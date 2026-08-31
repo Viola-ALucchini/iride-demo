@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#8a1b55">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>IRIDEShelf · Demo gestione ripiani</title>
+<style>
+:root{
+  --berry:#8a1b55; --berry-deep:#5f0f3a; --berry-ink:#2a0d1d;
+  --cream:#faf6f2; --cream-2:#f2e9e3; --line:#e4d5ce; --card:#ffffff;
+  --add:#3f9d4f; --add-bg:#e8f5e9;
+  --move:#2f7fbf; --move-bg:#e7f1fb;
+  --dup:#d98a14; --dup-bg:#fcf2dd;
+  --err:#c0392b; --err-bg:#fbe9e7;
+  --muted:#8a7a82; --ink:#2a0d1d;
+  font-size:16px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--cream);
+  color:var(--ink);height:100dvh;display:flex;flex-direction:column;overflow:hidden;
+  -webkit-user-select:none;user-select:none}
+.hidden{display:none!important}
+button{font-family:inherit;cursor:pointer}
+
+/* start gate */
+#gate{position:fixed;top:0;left:0;right:0;bottom:0;z-index:60;background:var(--cream);color:var(--ink);
+  display:flex;flex-direction:column;justify-content:center;padding:28px 22px;overflow-y:auto}
+#gate .brandwrap{display:flex;flex-direction:column;align-items:center;text-align:center;margin-bottom:20px}
+#gate .viola{width:84px;height:auto;margin-bottom:14px}
+#gate .prod{font-size:30px;font-weight:800;color:var(--berry);letter-spacing:-.01em;line-height:1}
+#gate .prod .e{color:#c74a92;font-weight:700}
+#gate .by{font-size:11px;color:var(--muted);letter-spacing:.22em;text-transform:uppercase;margin-top:7px}
+#gate .lead{font-size:13px;color:var(--muted);text-align:center;margin-bottom:20px;line-height:1.45;max-width:30em;align-self:center}
+.op{display:flex;align-items:center;gap:13px;background:#fff;border:1px solid var(--line);
+  color:var(--ink);padding:14px 15px;border-radius:14px;margin-bottom:10px;
+  box-shadow:0 3px 12px rgba(90,20,60,.07)}
+.op:active{transform:translateY(1px);box-shadow:0 1px 5px rgba(90,20,60,.10)}
+.op .dot{flex:0 0 auto;width:42px;height:42px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;font-weight:800;font-size:17px;color:#fff}
+.op .who{flex:1;min-width:0;text-align:left}
+.op .who .nm{font-size:17px;font-weight:800;line-height:1.15}
+.op .role{margin-left:auto;font-size:11px;font-weight:800;padding:6px 12px;border-radius:999px;color:#fff;letter-spacing:.02em}
+#gate .pv{text-align:center;font-size:12px;color:var(--muted);margin-top:8px}
+#gate .pv b{color:var(--ink)}
+#gate .greet{text-align:center;margin:10px 0 24px}
+#gate .greet .hi{display:block;font-size:20px;color:var(--muted);font-weight:600}
+#gate .greet .who{display:block;font-size:36px;font-weight:800;color:var(--berry);line-height:1.08;margin-top:2px}
+#gate .entra{width:100%;background:var(--berry);color:#fff;border:none;border-radius:16px;font-size:22px;
+  font-weight:800;letter-spacing:.1em;padding:20px;box-shadow:0 6px 22px rgba(138,27,85,.28)}
+#gate .entra:active{background:var(--berry-deep);transform:translateY(1px)}
+#gate .note{font-size:11px;color:var(--muted);opacity:.9;margin-top:12px;line-height:1.5;text-align:center}
+/* role colors (dot + chip; specific enough to beat generic .role) */
+.op .dot.r-farm,.op .role.r-farm{background:#128a7d}
+.op .dot.r-tit,.op .role.r-tit{background:var(--berry)}
+.op .dot.r-promo,.op .role.r-promo{background:#e0714f}
+
+/* top bar */
+header{flex:0 0 auto;background:var(--berry-deep);color:#fff;padding:9px 12px;
+  display:flex;align-items:center;gap:10px}
+header .lg{font-weight:800;font-size:15px}header .lg .e{color:#ff8fc4}
+header .pv{margin-left:auto;font-size:11px;opacity:.72;text-align:right;line-height:1.25}
+
+/* breadcrumb / crumbs */
+.crumbs{flex:0 0 auto;background:var(--berry);color:#fff;padding:8px 12px;display:flex;
+  align-items:center;gap:8px;font-size:13px;min-height:38px}
+.crumbs .back{background:rgba(255,255,255,.16);border:none;color:#fff;border-radius:8px;
+  padding:6px 10px;font-weight:700;font-size:13px}
+.crumbs .back:active{background:rgba(255,255,255,.3)}
+.crumbs .path{opacity:.92;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* pending banner (move/add awaiting destination) */
+.pending{flex:0 0 auto;background:var(--dup-bg);border-bottom:2px solid var(--dup);
+  padding:11px 12px;display:flex;align-items:center;gap:10px}
+.pending .ic{font-size:20px}
+.pending .tx{flex:1;font-size:13px;line-height:1.3}
+.pending .tx b{color:var(--dup)}
+.pending .cancel{background:none;border:1px solid var(--dup);color:var(--dup);border-radius:8px;
+  padding:7px 10px;font-weight:700;font-size:12px}
+
+/* scroll body */
+main{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 12px 12px}
+h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:2px 4px 10px}
+
+/* home hint */
+.hint{background:linear-gradient(180deg,var(--berry-deep),var(--berry));color:#fff;
+  border-radius:16px;padding:18px;margin-bottom:16px}
+.hint h3{margin:0 0 4px;font-size:19px;font-weight:800}
+.hint p{margin:0;opacity:.88;font-size:13px;line-height:1.45}
+
+/* generic cards / rows */
+.cardbtn{width:100%;text-align:left;background:var(--card);border:1px solid var(--line);
+  border-radius:14px;padding:14px;margin-bottom:9px;display:flex;align-items:center;gap:12px;color:var(--ink)}
+.cardbtn:active{background:var(--cream-2)}
+.cardbtn .ico{flex:0 0 auto;width:44px;height:44px;border-radius:11px;background:var(--berry);
+  color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;letter-spacing:.02em}
+.cardbtn .ico.sc{background:var(--berry)}
+.cardbtn .ico.rp{background:#b23a76}
+.cardbtn .body{flex:1;min-width:0}
+.cardbtn .t1{font-size:16px;font-weight:800;line-height:1.15}
+.cardbtn .t2{font-size:12px;color:var(--muted);margin-top:2px}
+.cardbtn .cnt{flex:0 0 auto;text-align:right}
+.cardbtn .cnt b{font-size:20px;font-weight:800;color:var(--berry)}
+.cardbtn .cnt span{display:block;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+
+/* ripiano header card */
+.rhead{background:linear-gradient(180deg,var(--berry-deep),var(--berry));color:#fff;
+  border-radius:16px;padding:16px;margin-bottom:14px}
+.rhead .code{font-size:32px;font-weight:800;line-height:1;display:flex;align-items:baseline;gap:14px}
+.rhead .code small{font-size:14px;font-weight:600;opacity:.85}
+.rhead .sub{font-size:13px;opacity:.88;margin-top:4px}
+
+/* product row inside ripiano */
+.prow{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:11px 12px;
+  margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.prow .body{flex:1;min-width:0}
+.prow .nm{font-size:14px;font-weight:700;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow .cd{font-size:11px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}
+.prow .acts{flex:0 0 auto;display:flex;gap:6px}
+.prow .acts button{border-radius:9px;font-weight:700;font-size:12px;padding:8px 10px;border:1px solid}
+.b-move{background:var(--move-bg);color:var(--move);border-color:var(--move)}
+.b-rem{background:var(--err-bg);color:var(--err);border-color:var(--err)}
+/* two-line product card (ripiano) */
+.pcard{background:var(--card);border:1px solid var(--line);border-radius:13px;padding:12px;margin-bottom:9px}
+.pcard-top{display:flex;align-items:flex-start;gap:10px}
+.pcard .pinfo{flex:1;min-width:0}
+.pcard .nm{font-size:15px;font-weight:700;line-height:1.22}
+.pcard .cd{font-size:11px;color:var(--muted);margin-top:3px;font-variant-numeric:tabular-nums}
+.pcard-acts{display:flex;justify-content:space-between;margin-top:12px}
+.pcard-acts button{border-radius:10px;font-weight:800;font-size:14px;padding:10px 20px;border:1px solid}
+.role{flex:0 0 auto;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;
+  padding:4px 7px;border-radius:999px;background:var(--dup-bg);color:var(--dup)}
+.role.prin{background:#efe7eb;color:var(--berry)}
+.emptybox{text-align:center;color:var(--muted);font-size:14px;padding:26px 10px;line-height:1.5;
+  background:var(--card);border:1px dashed var(--line);border-radius:14px}
+
+/* product card sheet */
+.sheet-wrap{position:fixed;top:0;left:0;right:0;bottom:0;z-index:40;background:rgba(42,13,29,.5);
+  display:flex;align-items:flex-end}
+.sheet{background:var(--cream);width:100%;border-radius:20px 20px 0 0;padding:18px 16px 16px;
+  max-height:86dvh;overflow-y:auto;box-shadow:0 -10px 40px rgba(0,0,0,.3)}
+.sheet .grip{width:40px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 14px}
+.sheet .pname{font-size:20px;font-weight:800;line-height:1.15}
+.sheet .pcat{font-size:12px;color:var(--muted);margin-top:3px}
+.sheet .pcode{font-size:13px;margin-top:8px;font-variant-numeric:tabular-nums;color:var(--berry-ink)}
+.sheet .pcode span{color:var(--muted)}
+.sheet .status{margin:14px 0 6px;padding:12px;border-radius:12px;font-size:14px;line-height:1.4}
+.status.placed{background:var(--add-bg);color:#205a2a}
+.status.unplaced{background:var(--dup-bg);color:#8a5708}
+.status.unknown{background:var(--err-bg);color:#8a261b}
+.sheet h4{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:14px 4px 8px}
+.destbtn{width:100%;text-align:left;background:var(--card);border:1px solid var(--line);
+  border-radius:12px;padding:13px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;color:var(--ink)}
+.destbtn:active{background:var(--cream-2)}
+.destbtn .r{font-size:16px;font-weight:800;color:var(--berry)}
+.destbtn .rr{font-size:12px;color:var(--muted)}
+.destbtn .go{margin-left:auto;font-size:13px;font-weight:700;color:var(--berry)}
+.bigbtn{width:100%;border:none;border-radius:13px;font-weight:800;font-size:16px;padding:15px;color:#fff;margin-top:6px}
+.bigbtn.add{background:var(--add)} .bigbtn.add:active{filter:brightness(.92)}
+.bigbtn.move{background:var(--move)}
+.bigbtn.ghost{background:var(--card);color:var(--berry);border:1px solid var(--line)}
+.sheet .close{width:100%;background:none;border:none;color:var(--muted);font-size:14px;font-weight:600;padding:14px 0 4px}
+
+/* toast */
+#toast{position:fixed;left:50%;bottom:86px;transform:translateX(-50%) translateY(20px);
+  z-index:55;background:var(--berry-ink);color:#fff;padding:12px 18px;border-radius:12px;
+  font-size:14px;font-weight:700;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;
+  max-width:88vw;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.3)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+#toast.add{background:var(--add)} #toast.move{background:var(--move)}
+#toast.dup{background:var(--dup)} #toast.err{background:var(--err)}
+
+/* bottom bar */
+.foot{flex:0 0 auto;border-top:1px solid var(--line);background:var(--cream-2);padding:8px 12px;
+  display:flex;gap:8px;align-items:center}
+.foot .gunpill{flex:0 0 auto;font-size:11px;color:var(--muted);display:flex;align-items:center;gap:6px}
+.foot .gunpill .led{width:8px;height:8px;border-radius:50%;background:#c9b9c0;transition:.1s}
+.foot .gunpill.live .led{background:var(--add);box-shadow:0 0 0 3px rgba(63,157,79,.2)}
+.foot .scanbtn{flex:1;background:var(--berry);color:#fff;border:none;border-radius:11px;font-weight:800;
+  font-size:16px;padding:12px;letter-spacing:.01em}
+.foot .scanbtn:active{background:var(--berry-deep)}
+.foot .undo{flex:0 0 auto;background:#fff;color:var(--berry);border:1px solid var(--line);border-radius:11px;font-weight:800;font-size:16px;padding:11px 14px}
+.foot .undo:disabled{color:#c9b9c0;border-color:var(--line)}
+
+/* home CTAs */
+.home-cta{width:100%;border:none;border-radius:16px;font-weight:800;padding:18px;display:flex;
+  align-items:center;justify-content:center;gap:10px;margin-bottom:11px}
+.home-cta .big{font-size:19px}
+.home-cta.primary{background:var(--berry);color:#fff}
+.home-cta.primary:active{background:var(--berry-deep)}
+.home-cta.primary .sub{display:block;font-size:12px;font-weight:600;opacity:.85;margin-top:2px}
+.home-cta.secondary{background:#fff;color:var(--berry);border:1px solid var(--line);font-size:16px;padding:15px}
+.home-cta.secondary:active{background:var(--cream-2)}
+.spin{width:18px;height:18px;border:3px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;
+  display:inline-block;animation:sp .7s linear infinite}
+.spin.berry{border:3px solid var(--line);border-top-color:var(--berry)}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* scan drawer */
+.scan-wrap{position:fixed;top:0;left:0;right:0;bottom:0;z-index:45;display:flex;flex-direction:column;justify-content:flex-end}
+.scan-scrim{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(42,13,29,.42)}
+.scan-sheet{position:relative;background:var(--cream);border-radius:20px 20px 0 0;padding:14px 16px 18px;
+  max-height:74dvh;overflow-y:auto;box-shadow:0 -10px 40px rgba(0,0,0,.3)}
+.scan-sheet .grip{width:40px;height:4px;background:var(--line);border-radius:2px;margin:0 auto 12px}
+.scan-head{display:flex;align-items:center;margin-bottom:12px}
+.scan-title{font-size:19px;font-weight:800}
+.scan-close{margin-left:auto;background:none;border:none;color:var(--muted);font-size:15px;font-weight:700}
+.scan-tabs{display:flex;background:var(--cream-2);border-radius:11px;padding:4px;margin-bottom:14px}
+.scan-tab{flex:1;background:none;border:none;color:var(--muted);font-weight:800;font-size:14px;padding:10px;border-radius:8px}
+.scan-tab.active{background:#fff;color:var(--berry);box-shadow:0 1px 4px rgba(90,20,60,.1)}
+.scan-pane{margin-bottom:6px}
+#scanIn{width:100%;font-size:22px;font-weight:700;text-align:center;letter-spacing:.06em;padding:16px 12px;
+  border:2px solid var(--berry);border-radius:13px;background:#fff;color:var(--berry-ink);font-variant-numeric:tabular-nums}
+#scanIn::placeholder{color:#c9b9c0;font-weight:600;font-size:15px;letter-spacing:0}
+.scan-hint{font-size:12px;color:var(--muted);line-height:1.45;margin:10px 2px 4px}
+.cam-frame{position:relative;width:100%;aspect-ratio:4/3;background:#1c0a13;border-radius:13px;overflow:hidden;
+  display:flex;align-items:center;justify-content:center}
+.cam-frame video{width:100%;height:100%;object-fit:cover}
+.cam-reticle{position:absolute;left:12%;right:12%;top:34%;bottom:34%;border:3px solid rgba(255,255,255,.85);border-radius:10px;
+  box-shadow:0 0 0 2000px rgba(0,0,0,.25)}
+.scan-log-h{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:14px 2px 8px}
+.scan-log{display:flex;flex-direction:column}
+.scan-empty{color:var(--muted);font-size:13px;padding:8px 2px}
+.scan-entry{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);
+  border-radius:11px;padding:10px 12px;margin-bottom:7px}
+.scan-entry .tag{flex:0 0 auto;font-size:10px;font-weight:800;letter-spacing:.03em;padding:4px 8px;border-radius:6px;color:#fff}
+.tag-sc{background:var(--berry)} .tag-rp{background:#b23a76} .tag-pr{background:#128a7d} .tag-x{background:var(--err)}
+.scan-entry .code{flex:0 0 auto;font-weight:800;font-variant-numeric:tabular-nums;font-size:14px}
+.scan-entry .out{flex:1;text-align:right;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="brandwrap">
+    <svg class="viola" viewBox="0 0 425.197 283.465" xmlns="http://www.w3.org/2000/svg"><path fill-rule="nonzero" fill="#4c1150" d="M 125.699219 158.78125 L 76 264.988281 L 76.828125 266.496094 L 194.933594 266.496094 L 133.769531 158.78125 Z M 280.125 158.78125 L 272.046875 158.78125 L 222.347656 264.988281 L 223.175781 266.496094 L 341.28125 266.496094 Z M 206.867188 26.054688 L 198.792969 26.054688 L 149.097656 132.277344 L 200.558594 240.269531 L 208.636719 240.269531 L 268.175781 134.046875 Z M 206.867188 26.054688 "/><path fill-rule="nonzero" fill="#950188" d="M 67.921875 264.988281 L 68.757812 266.496094 L 186.855469 266.496094 L 125.699219 158.78125 Z M 272.046875 158.78125 L 214.269531 264.988281 L 215.109375 266.496094 L 333.203125 266.496094 Z M 198.792969 26.054688 L 141.015625 132.277344 L 200.558594 240.269531 L 260.097656 134.046875 Z M 198.792969 26.054688 "/></svg>
+    <div class="prod">IRIDE<span class="e">Shelf</span></div>
+    <div class="by">by Viola</div>
+  </div>
+  <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
+  <button class="entra" id="btnEntra">ENTRA</button>
+  <div class="pv">Farmacia Demo · <b>PV 001</b></div>
+</div>
+
+<header>
+  <div class="lg">IRIDE<span class="e">Shelf</span></div>
+  <div class="pv">Farmacia Demo · PV 001<br><span id="opName">—</span></div>
+</header>
+
+<div class="crumbs">
+  <button class="back hidden" id="btnBack">‹ Indietro</button>
+  <div class="path" id="crumb">Home</div>
+</div>
+
+<div class="pending hidden" id="pending">
+  <span class="ic">🡒</span>
+  <div class="tx" id="pendingTx"></div>
+  <button class="cancel" id="pendingCancel">Annulla</button>
+</div>
+
+<main id="main"></main>
+
+<div id="toast"></div>
+
+<div class="foot">
+  <span class="gunpill" id="gunpill"><span class="led"></span>lettore</span>
+  <button class="scanbtn" id="btnScan">⌖&nbsp; Scansiona</button>
+  <button class="undo" id="btnUndo" disabled>↶</button>
+</div>
+
+<!-- scan drawer: external HID reader + phone camera -->
+<div class="scan-wrap hidden" id="scanWrap">
+  <div class="scan-scrim" id="scanScrim"></div>
+  <div class="scan-sheet">
+    <div class="grip"></div>
+    <div class="scan-head">
+      <div class="scan-title">Scansione</div>
+      <button class="scan-close" id="scanClose">Chiudi</button>
+    </div>
+    <div class="scan-tabs">
+      <button class="scan-tab active" id="tabHid" data-tab="hid">Lettore esterno</button>
+      <button class="scan-tab" id="tabCam" data-tab="cam">Fotocamera</button>
+    </div>
+    <div class="scan-pane" id="paneHid">
+      <input id="scanIn" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Spara — il codice appare qui">
+      <div class="scan-hint">Tieni aperta questa schermata e spara: ogni codice viene letto e instradato. Il lettore USB-C si comporta come una tastiera.</div>
+    </div>
+    <div class="scan-pane hidden" id="paneCam">
+      <div class="cam-frame"><video id="camVideo" playsinline muted></video><div class="cam-reticle"></div></div>
+      <div class="scan-hint" id="camMsg">Inquadra il codice a barre nel riquadro.</div>
+    </div>
+    <div class="scan-log-h">LETTURE</div>
+    <div class="scan-log" id="scanLog"><div class="scan-empty">Nessuna lettura ancora.</div></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+if(typeof NodeList!=='undefined' && NodeList.prototype && !NodeList.prototype.forEach){ NodeList.prototype.forEach=Array.prototype.forEach; }
+/* =========================================================================
+   FAKE BACKEND — seeded catalog. Replace with real IRIDEShelf endpoints.
+   ========================================================================= */
+const SCAFFALI = { 'S00028':'Antidolore', 'S00050':'Stomaco e Intestino' };
+const RIPIANI = {}; // code -> scaffale
+['R00140','R00141','R00142','R00143','R00144','R00145','R00146','R00147'].forEach(r=>RIPIANI[r]='S00028');
+['R00150','R00151','R00152','R00153','R00154','R00155','R00156','R00157'].forEach(r=>RIPIANI[r]='S00050');
+
+const PRODUCTS = {};   // pid -> {name, cat, codes:[]}
+const CODE2ID  = {};
+let PLC = [];          // placements: [{pid, r, role}]
+
+function ean13(base12){let s=0;for(let i=0;i<12;i++)s+=(+base12[i])*(i%2?3:1);return base12+((10-s%10)%10);}
+
+// deterministic seed generator: brand roots × variant templates -> realistic distinct SKUs
+const SEED = {
+  'S00028':{ cat:'A05 - Anti-dolore', brands:['BRUFEN','MOMENT','OKI','VOLTAREN','FLECTOR','TACHIPIRINA','NUROFEN','SARIDON','BUSCOFEN','FASTUM','DICLOREUM','LASONIL','TANTUM','ASPIRINA','MOMENDOL'],
+    vars:['*20CPR RIV 400MG','*12CPR 200MG',' EMULGEL*100G 1%','*GEL 50G','*10CER MEDIC','*OS 20BUST GRAN','*24CPR RIV 220MG','*OS GRAT 30BUST'] },
+  'S00050':{ cat:'A03 - Stomaco e Intestino', brands:['MAALOX','GAVISCON','BIOCHETASI','ENTEROGERMINA','IMODIUM','BUSCOPAN','RIOPAN','CITROSODINA','ENTEROLACTIS','DICOFLOR','DEBRIDAT','SPASMOMEN','GUTTALAX','DULCOLAX','LACTOFLORENE'],
+    vars:['*OS 20BUST','*SCIR 200ML','*30CPS','*10FL 5ML','*GEL 250ML','*OS SOSP 250ML','*20CPR','*OS GRAN 24BUST'] }
+};
+let mins = 240000000;
+function nextMinsan(){ mins += (7+ (mins%5)); return String(mins).slice(0,9); }
+let eanSeed = 8000560000000;
+function nextEan(){ eanSeed += 137; return ean13(String(eanSeed).slice(0,12)); }
+
+let eanQuota = 10; // give ~10 products a secondary EAN13
+Object.keys(SCAFFALI).forEach(scaf=>{
+  const S=SEED[scaf]; const ripiani=Object.keys(RIPIANI).filter(r=>RIPIANI[r]===scaf);
+  // build a flat product list for this scaffale
+  const raw=[];
+  for(const b of S.brands){ for(const v of S.vars){ raw.push(b+v); } }
+  const list=[]; const L=raw.length; for(let i=0;i<L;i++) list.push(raw[(i*37)%L]); // permutation (37 coprime w/120) → assorted shelves
+  // distribute across 8 ripiani: ~10-14 each, capped 20
+  let idx=0;
+  ripiani.forEach((r,ri)=>{
+    const n = 8 + ((ri*3+5)%7); // 8..14 deterministic
+    for(let k=0;k<n && idx<list.length;k++,idx++){
+      const pid='p'+String(idx)+scaf;
+      const codes=[nextMinsan()];
+      if(eanQuota>0 && (idx%4===1)){ codes.push(nextEan()); eanQuota--; }
+      PRODUCTS[pid]={name:list[idx], cat:S.cat, codes};
+      codes.forEach(c=>CODE2ID[c]=pid);
+      PLC.push({pid, r, role:'prin'});
+    }
+  });
+});
+
+// ---- inject exactly ONE duplicated product (2 positions on 2 different ripiani) ----
+// pick a product currently on R00143 and add a subordinate copy on R00145
+(function(){
+  const seed=PLC.find(p=>p.r==='R00143'); // its principale stays
+  PLC.push({pid:seed.pid, r:'R00145', role:'sub'});
+  window.__DUP__={ name:PRODUCTS[seed.pid].name, code:PRODUCTS[seed.pid].codes[0], a:'R00143', b:'R00145' };
+})();
+
+/* model ops */
+const ripianiOf = pid => PLC.filter(p=>p.pid===pid).map(p=>({r:p.r,role:p.role}));
+const onRipiano = r => PLC.filter(p=>p.r===r);
+const resolve = code =>{
+  if(CODE2ID[code]) return CODE2ID[code];
+  if(code.length===12){const c=ean13(code); if(CODE2ID[c])return CODE2ID[c];}
+  if(code.length===13){const c=code.slice(0,12); if(CODE2ID[c])return CODE2ID[c];}
+  return null;
+};
+
+/* =========================================================================
+   ROUTING
+   ========================================================================= */
+function classify(raw){
+  let p=String(raw).replace(/[\r\n]+$/,'');
+  if(/^\][A-Za-z][0-9A-Za-z]/.test(p)) p=p.slice(3); // AIM prefix
+  p=p.trim();
+  if(!p) return {type:'empty'};
+  const f=p[0];
+  if(f==='R'||f==='r') return {type:'ripiano', code:p.toUpperCase()};
+  if(f==='S'||f==='s') return {type:'scaffale', code:p.toUpperCase()};
+  if(/^\d+$/.test(p))  return {type:'product', code:p};
+  return {type:'bad', code:p};
+}
+
+/* =========================================================================
+   FEEDBACK
+   ========================================================================= */
+let AC=null; const ac=()=>AC||(AC=new(window.AudioContext||window.webkitAudioContext)());
+function tone(seq){try{const c=ac();let t=c.currentTime;for(const s of seq){const o=c.createOscillator(),g=c.createGain();
+  o.type=s.type||'sine';o.frequency.setValueAtTime(s.f0||s.f,t);if(s.f1)o.frequency.exponentialRampToValueAtTime(s.f1,t+s.d);
+  g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(s.g||.16,t+.008);g.gain.exponentialRampToValueAtTime(.0001,t+s.d);
+  o.connect(g).connect(c.destination);o.start(t);o.stop(t+s.d+.02);t+=s.d+(s.gap||0);}}catch(e){}}
+const buzz=p=>{try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}};
+const FX={
+  nav:  ()=>{tone([{f:620,d:.05,type:'sine',g:.09}]);buzz(10);},
+  open: ()=>{tone([{f:560,d:.06,type:'square'},{f:820,d:.07,type:'square',gap:.01}]);buzz([12,24,12]);},
+  add:  ()=>{tone([{f:880,d:.10}]);buzz(28);},
+  move: ()=>{tone([{f0:680,f1:1140,d:.13,type:'triangle'}]);buzz([18,36,18]);},
+  dup:  ()=>{tone([{f:520,d:.09,type:'square'},{f:660,d:.09,type:'square',gap:.03},{f:520,d:.09,type:'square',gap:.03}]);buzz([50,40,50]);},
+  rem:  ()=>{tone([{f0:640,f1:300,d:.16,type:'sawtooth',g:.16}]);buzz(90);},
+  err:  ()=>{tone([{f:150,d:.22,type:'square',g:.22}]);buzz([120,60,120]);}
+};
+let toastTO=null;
+function toast(msg,kind){const t=document.getElementById('toast');t.className='';t.classList.add('show');
+  if(kind)t.classList.add(kind);t.textContent=msg;clearTimeout(toastTO);toastTO=setTimeout(()=>t.classList.remove('show'),1700);}
+
+/* =========================================================================
+   NAVIGATION STATE
+   ========================================================================= */
+const $=id=>document.getElementById(id);
+let view={name:'home'};      // {name:'home'|'scaffale'|'ripiano', code}
+let stack=[];                // back stack
+let pendOp=null;            // {op:'move'|'add', pid, from}
+let operator='';
+let actions=[];              // undo log
+let scaffaliLoaded=false;    // scaffali fetched from backend?
+let lastScan=null;           // {type,code,out} for the scan console
+
+function go(v,push=true){ if(push && view) stack.push(view); view=v; render(); }
+function back(){ if(stack.length){ view=stack.pop(); render(); } }
+
+/* =========================================================================
+   RENDER
+   ========================================================================= */
+function render(){
+  renderCrumb(); renderPending();
+  const m=$('main'); m.scrollTop=0;
+  if(view.name==='home') return renderHome(m);
+  if(view.name==='scaffale') return renderScaffale(m,view.code);
+  if(view.name==='ripiano') return renderRipiano(m,view.code);
+}
+function renderCrumb(){
+  $('btnBack').classList.toggle('hidden', stack.length===0);
+  let path='Home';
+  if(view.name==='scaffale') path='Scaffale '+view.code+' · '+SCAFFALI[view.code];
+  else if(view.name==='ripiano') path='Ripiano '+view.code;
+  $('crumb').textContent=path;
+}
+function renderPending(){
+  const el=$('pending');
+  if(!pendOp){el.classList.add('hidden');return;}
+  el.classList.remove('hidden');
+  const nm=PRODUCTS[pendOp.pid].name;
+  $('pendingTx').innerHTML = (pendOp.op==='move'
+    ? 'Sposta <b>'+nm+'</b> — spara il ripiano di <b>destinazione</b>'
+    : 'Aggiungi <b>'+nm+'</b> — spara il ripiano di <b>destinazione</b>');
+}
+
+function renderHome(m){
+  m.innerHTML='';
+  const scan=document.createElement('button');scan.className='home-cta primary';
+  scan.innerHTML='<span class="big">⌖&nbsp; Spara per iniziare</span>';
+  scan.onclick=openScan;
+  m.appendChild(scan);
+
+  if(!scaffaliLoaded){
+    const f=document.createElement('button');f.className='home-cta secondary';f.id='btnFetch';
+    f.innerHTML='↻&nbsp; Recupera elenco scaffali';
+    f.onclick=loadScaffali;
+    m.appendChild(f);
+  } else {
+    const h=document.createElement('h2');h.className='sec';h.textContent='Scaffali';h.style.marginTop='6px';m.appendChild(h);
+    Object.keys(SCAFFALI).forEach(s=>{
+      const nr=Object.keys(RIPIANI).filter(r=>RIPIANI[r]===s).length;
+      const b=document.createElement('button');b.className='cardbtn';
+      b.innerHTML='<span class="ico sc">SC</span><div class="body"><div class="t1">'+SCAFFALI[s]+'</div><div class="t2">'+s+'</div></div><div class="cnt"><b>'+nr+'</b><span>ripiani</span></div>';
+      b.onclick=()=>{FX.open();openScaffale(s);};
+      m.appendChild(b);
+    });
+  }
+  if(actions.length){
+    const h=document.createElement('h2');h.className='sec';h.textContent='Attività recente';h.style.marginTop='16px';m.appendChild(h);
+    actions.slice(0,6).forEach(a=>{
+      const d=document.createElement('div');d.className='prow';
+      const chip={add:['add','aggiunto'],move:['move','spostato'],rem:['rem','rimosso']}[a.kind];
+      d.innerHTML='<span class="role '+(chip[0]==='rem'?'':'prin')+'" style="background:var(--'+chip[0]+'-bg);color:var(--'+chip[0]+')">'+chip[1]+'</span><div class="body"><div class="nm">'+a.name+'</div><div class="cd">'+a.detail+'</div></div>';
+      m.appendChild(d);
+    });
+  }
+}
+function loadScaffali(){
+  const f=$('btnFetch'); if(f){ f.disabled=true; f.innerHTML='<span class="spin berry"></span>&nbsp; Recupero elenco…'; }
+  FX.nav();
+  setTimeout(function(){ scaffaliLoaded=true; FX.open(); if(view.name==='home') render(); }, 750);
+}
+
+function renderScaffale(m,scaf){
+  m.innerHTML='<div class="rhead"><div class="code">'+scaf+' <small>'+SCAFFALI[scaf]+'</small></div><div class="sub">Tocca un ripiano per vederne i prodotti</div></div><h2 class="sec">Ripiani</h2>';
+  Object.keys(RIPIANI).filter(r=>RIPIANI[r]===scaf).forEach(r=>{
+    const n=onRipiano(r).length;
+    const b=document.createElement('button');b.className='cardbtn';
+    b.innerHTML='<span class="ico rp">RP</span><div class="body"><div class="t1">'+r+'</div><div class="t2">'+(n>=20?'pieno':'ripiano')+'</div></div><div class="cnt"><b>'+n+'</b><span>prod.</span></div>';
+    b.onclick=()=>{ if(pendOp){ completePending(r); } else { FX.open(); openRipiano(r);} };
+    m.appendChild(b);
+  });
+}
+
+function renderRipiano(m,r){
+  const scaf=RIPIANI[r];
+  m.innerHTML='<div class="rhead"><div class="code">'+r+' <small>scaffale '+scaf+'</small></div><div class="sub">'+SCAFFALI[scaf]+' · '+onRipiano(r).length+' prodotti</div></div>'+
+    '<h2 class="sec">Prodotti su questo ripiano</h2>';
+  const items=onRipiano(r);
+  if(!items.length){ m.insertAdjacentHTML('beforeend','<div class="emptybox">Ripiano vuoto.<br>Spara un prodotto per aggiungerlo qui.</div>'); return; }
+  items.forEach(pl=>{
+    const p=PRODUCTS[pl.pid]; const dup=ripianiOf(pl.pid).length>1;
+    const row=document.createElement('div');row.className='pcard';
+    row.innerHTML='<div class="pcard-top"><div class="pinfo"><div class="nm">'+p.name+'</div><div class="cd">'+p.codes[0]+(p.codes[1]?' · EAN '+p.codes[1]:'')+'</div></div>'+
+      (dup?'<span class="role '+(pl.role==='prin'?'prin':'')+'">'+(pl.role==='prin'?'principale':'duplicato')+'</span>':'')+
+      '</div><div class="pcard-acts"></div>';
+    const acts=row.querySelector('.pcard-acts');
+    const br=document.createElement('button');br.className='b-rem';br.textContent='Togli';
+    br.onclick=()=>doRemove(pl.pid,r);
+    const bm=document.createElement('button');bm.className='b-move';bm.textContent='Sposta';
+    bm.onclick=()=>startMove(pl.pid,r);
+    acts.append(br,bm);   // Togli left, Sposta right
+    m.appendChild(row);
+  });
+}
+
+/* =========================================================================
+   NAVIGATION ACTIONS
+   ========================================================================= */
+function openScaffale(code){ if(!SCAFFALI[code]){FX.err();toast('Scaffale '+code+' sconosciuto','err');return;} go({name:'scaffale',code}); }
+function openRipiano(code){ if(!RIPIANI[code]){FX.err();toast('Ripiano '+code+' inesistente in questo PV','err');return;} go({name:'ripiano',code}); }
+
+/* product card */
+function openProductCard(code){
+  const pid=resolve(code);
+  const wrap=document.createElement('div');wrap.className='sheet-wrap';
+  const sh=document.createElement('div');sh.className='sheet';wrap.appendChild(sh);
+  const closeAll=()=>wrap.remove();
+  wrap.onclick=e=>{if(e.target===wrap)closeAll();};
+
+  if(!pid){
+    FX.err();
+    sh.innerHTML='<div class="grip"></div><div class="pname">Prodotto sconosciuto</div>'+
+      '<div class="pcode"><span>codice</span> '+code+'</div>'+
+      '<div class="status unknown">Non presente in anagrafica. Da registrare a desktop (l\u2019app mobile non crea referenze).</div>'+
+      '<button class="close">Chiudi</button>';
+    sh.querySelector('.close').onclick=closeAll;
+    document.body.appendChild(wrap); return;
+  }
+  const p=PRODUCTS[pid]; const places=ripianiOf(pid);
+  FX.nav();
+  let html='<div class="grip"></div><div class="pname">'+p.name+'</div><div class="pcat">'+p.cat+'</div>'+
+    '<div class="pcode"><span>MINSAN</span> '+p.codes[0]+(p.codes[1]?'<br><span>EAN</span> '+p.codes[1]:'')+'</div>';
+
+  if(places.length===0){
+    html+='<div class="status unplaced">Non è a scaffale.</div><h4>Aggiungi</h4>';
+    // if we're inside a ripiano, offer add-here first
+    if(view.name==='ripiano'){
+      html+='<button class="bigbtn add" data-here="'+view.code+'">Aggiungi qui — '+view.code+'</button>';
+      html+='<button class="bigbtn ghost" data-addelse="1">Aggiungi in un altro ripiano…</button>';
+    } else {
+      html+='<button class="bigbtn add" data-addelse="1">Aggiungi — spara ripiano di destinazione</button>';
+    }
+  } else {
+    const dup=places.length>1;
+    html+='<div class="status placed">È a scaffale in '+places.length+(dup?' ripiani (posizione duplicata).':' ripiano.')+'</div>';
+    html+='<h4>'+(dup?'Scegli il ripiano da gestire':'Vai al ripiano')+'</h4>';
+    places.forEach(pl=>{
+      html+='<button class="destbtn" data-goto="'+pl.r+'"><div><div class="r">'+pl.r+'</div><div class="rr">scaffale '+RIPIANI[pl.r]+' · '+(pl.role==='prin'?'principale':'duplicato')+'</div></div><span class="go">Gestisci ›</span></button>';
+    });
+  }
+  html+='<button class="close">Chiudi</button>';
+  sh.innerHTML=html;
+
+  sh.querySelectorAll('[data-goto]').forEach(b=>b.onclick=()=>{closeAll();FX.open();openRipiano(b.dataset.goto);});
+  const hb=sh.querySelector('[data-here]'); if(hb)hb.onclick=()=>{closeAll();doAdd(pid,hb.dataset.here);};
+  const ae=sh.querySelector('[data-addelse]'); if(ae)ae.onclick=()=>{closeAll();startAdd(pid);};
+  sh.querySelector('.close').onclick=closeAll;
+  document.body.appendChild(wrap);
+}
+
+/* =========================================================================
+   MUTATIONS  (+ pending destination flow)
+   ========================================================================= */
+function startMove(pid,from){ pendOp={op:'move',pid,from}; renderPending();
+  toast('Spara il ripiano di destinazione','move'); FX.nav(); }
+function startAdd(pid){ pendOp={op:'add',pid}; renderPending();
+  toast('Spara il ripiano di destinazione','move'); FX.nav(); }
+function cancelPending(){ pendOp=null; renderPending(); }
+
+function completePending(dest){
+  if(!RIPIANI[dest]){ FX.err(); toast('Ripiano '+dest+' inesistente','err'); return; }
+  const {op,pid,from}=pendOp;
+  if(op==='add'){ pendOp=null; doAdd(pid,dest); }
+  else { pendOp=null; doMove(pid,from,dest); }
+}
+
+function doAdd(pid,r){
+  if(PLC.some(p=>p.pid===pid&&p.r===r)){ FX.err(); toast('Già presente in '+r,'err'); return; }
+  const has=PLC.some(p=>p.pid===pid);
+  PLC.push({pid,r,role:has?'sub':'prin'});
+  actions.unshift({kind:'add',pid,r,name:PRODUCTS[pid].name,detail:'in '+r});
+  FX.add(); toast('Aggiunto in '+r,'add'); afterMutation(r);
+}
+function doRemove(pid,r){
+  const i=PLC.findIndex(p=>p.pid===pid&&p.r===r); if(i<0)return;
+  PLC.splice(i,1);
+  actions.unshift({kind:'rem',pid,r,name:PRODUCTS[pid].name,detail:'da '+r});
+  FX.rem(); toast('Rimosso da '+r,'err'); afterMutation(r);
+}
+function doMove(pid,from,to){
+  if(PLC.some(p=>p.pid===pid&&p.r===to)){ FX.err(); toast('Già presente in '+to,'err'); return; }
+  const pl=PLC.find(p=>p.pid===pid&&p.r===from); if(!pl){FX.err();return;}
+  pl.r=to;
+  actions.unshift({kind:'move',pid,from,to,name:PRODUCTS[pid].name,detail:from+' → '+to});
+  FX.move(); toast('Spostato '+from+' → '+to,'move');
+  view={name:'ripiano',code:to}; render();   // land on destination to show result
+}
+function afterMutation(r){ render(); updateUndo(); }
+function updateUndo(){ $('btnUndo').disabled = actions.length===0; }
+
+$('btnUndo').onclick=()=>{
+  const a=actions.shift(); if(!a)return;
+  if(a.kind==='add'){ const i=PLC.findIndex(p=>p.pid===a.pid&&p.r===a.r); if(i>=0)PLC.splice(i,1); }
+  else if(a.kind==='rem'){ PLC.push({pid:a.pid,r:a.r,role:PLC.some(p=>p.pid===a.pid)?'sub':'prin'}); }
+  else if(a.kind==='move'){ const pl=PLC.find(p=>p.pid===a.pid&&p.r===a.to); if(pl)pl.r=a.from; }
+  toast('Annullato','dup'); buzz(20); render(); updateUndo();
+};
+
+/* =========================================================================
+   DISPATCH
+   ========================================================================= */
+function dispatch(raw){
+  const r=classify(raw); gunBlink();
+  let out='';
+  if(pendOp){
+    if(r.type==='ripiano'){ out = RIPIANI[r.code] ? (pendOp.op==='add'?'aggiunto in '+r.code:'spostato in '+r.code) : 'ripiano inesistente'; completePending(r.code); }
+    else if(r.type==='empty'){ return; }
+    else { FX.err(); toast('Spara un ripiano di destinazione (o annulla)','err'); out='serve destinazione'; }
+    pushScanLog(r,out); return;
+  }
+  switch(r.type){
+    case 'scaffale': if(SCAFFALI[r.code]){FX.open();openScaffale(r.code);out='scaffale aperto';} else {openScaffale(r.code);out='sconosciuto';} break;
+    case 'ripiano':  if(RIPIANI[r.code]){FX.open();openRipiano(r.code);out='ripiano aperto';} else {openRipiano(r.code);out='inesistente';} break;
+    case 'product':  { const pid=resolve(r.code); out = !pid?'prodotto sconosciuto':(ripianiOf(pid).length?'a scaffale':'non a scaffale'); openProductCard(r.code); } break;
+    case 'empty':    return;
+    default:         FX.err(); toast('Formato non valido','err'); out='formato non valido';
+  }
+  pushScanLog(r,out);
+  updateUndo();
+}
+function pushScanLog(r,out){
+  const log=$('scanLog'); if(!log) return;
+  const empty=log.querySelector('.scan-empty'); if(empty) empty.remove();
+  const map={scaffale:['SC','tag-sc'],ripiano:['RP','tag-rp'],product:['PROD','tag-pr']};
+  const tag=map[r.type]||['?','tag-x'];
+  const e=document.createElement('div'); e.className='scan-entry';
+  e.innerHTML='<span class="tag '+tag[1]+'">'+tag[0]+'</span><span class="code">'+(r.code||'—')+'</span><span class="out">'+(out||'')+'</span>';
+  log.insertBefore(e, log.firstChild);
+}
+
+/* =========================================================================
+   HID CAPTURE + manual + controls
+   ========================================================================= */
+let buf='';
+document.addEventListener('keydown',e=>{
+  if(!$('gate').classList.contains('hidden')) return;
+  if(document.activeElement===$('scanIn')) return;   // visible field handles it
+  if(e.key==='Enter'||e.key==='Tab'){ e.preventDefault(); const c=buf; buf=''; if(c)dispatch(c); return; }
+  if(e.key&&e.key.length===1) buf+=e.key;
+});
+let gunTO=null;
+function gunBlink(){const g=$('gunpill');g.classList.add('live');clearTimeout(gunTO);gunTO=setTimeout(()=>g.classList.remove('live'),400);}
+
+/* ---- scan drawer: external HID reader (default) + phone camera ---- */
+let camStream=null, camTimer=null, camDet=null;
+function openScan(){ $('scanWrap').classList.remove('hidden'); setScanTab('hid'); }
+function closeScan(){ $('scanWrap').classList.add('hidden'); stopCamera(); }
+function setScanTab(tab){
+  const hid=(tab==='hid');
+  $('tabHid').classList.toggle('active',hid); $('tabCam').classList.toggle('active',!hid);
+  $('paneHid').classList.toggle('hidden',!hid); $('paneCam').classList.toggle('hidden',hid);
+  if(hid){ stopCamera(); const i=$('scanIn'); if(i){i.value='';try{i.focus();}catch(e){}} }
+  else { startCamera(); }
+}
+function scanSubmit(){ const i=$('scanIn'); const v=i.value.trim(); i.value=''; if(v)dispatch(v); try{i.focus();}catch(e){} }
+function startCamera(){
+  const msg=$('camMsg'), v=$('camVideo');
+  if(!window.isSecureContext){
+    msg.innerHTML='La fotocamera richiede una connessione sicura (<b>HTTPS</b>). Aprendo il file in locale (<b>file://</b>) o via http il telefono non chiede nemmeno il permesso. Apri l\u2019app da un indirizzo <b>https://</b> oppure usa il <b>lettore esterno</b>.';
+    return;
+  }
+  if(!('BarcodeDetector' in window)){ msg.textContent='La lettura codici da fotocamera non è supportata su questo browser: usa il lettore esterno.'; return; }
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ msg.textContent='Fotocamera non disponibile: usa il lettore esterno.'; return; }
+  try{ camDet=new BarcodeDetector({formats:['code_128','ean_13','ean_8','qr_code','data_matrix']}); }
+  catch(e){ msg.textContent='Formati non supportati dalla fotocamera: usa il lettore esterno.'; return; }
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(function(st){
+    camStream=st; v.srcObject=st; try{v.play();}catch(e){} msg.textContent='Inquadra il codice…';
+    let last='', lastT=0;
+    camTimer=setInterval(function(){
+      if(!camDet||v.readyState<2) return;
+      camDet.detect(v).then(function(codes){
+        if(codes&&codes.length){ const raw=codes[0].rawValue, now=Date.now();
+          if(raw&&(raw!==last||now-lastT>1500)){ last=raw; lastT=now; FX.add(); dispatch(raw); } }
+      }).catch(function(){});
+    },350);
+  }).catch(function(err){
+    const n=err&&err.name;
+    if(n==='NotAllowedError') msg.innerHTML='Permesso fotocamera negato o bloccato. Tocca il <b>lucchetto</b> accanto all\u2019indirizzo → Autorizzazioni → Fotocamera → Consenti, poi riprova. Oppure usa il lettore esterno.';
+    else if(n==='NotFoundError'||n==='OverconstrainedError') msg.textContent='Nessuna fotocamera trovata su questo dispositivo. Usa il lettore esterno.';
+    else if(n==='NotReadableError') msg.textContent='Fotocamera occupata da un\u2019altra app. Chiudila e riprova.';
+    else msg.textContent='Impossibile avviare la fotocamera ('+(n||'errore')+'). Usa il lettore esterno.';
+  });
+}
+function stopCamera(){ if(camTimer){clearInterval(camTimer);camTimer=null;} if(camStream){camStream.getTracks().forEach(function(t){t.stop();});camStream=null;} camDet=null; }
+
+$('btnBack').onclick=back;
+$('pendingCancel').onclick=cancelPending;
+$('btnScan').onclick=openScan;
+$('scanClose').onclick=closeScan;
+$('scanScrim').onclick=closeScan;
+$('tabHid').onclick=()=>setScanTab('hid');
+$('tabCam').onclick=()=>setScanTab('cam');
+$('scanIn').addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); scanSubmit(); } });
+
+$('btnEntra').onclick=()=>{
+  operator='Alessandro';$('opName').textContent=operator;
+  try{ac().resume();tone([{f:700,d:.04,g:.05}]);}catch(e){}
+  $('gate').classList.add('hidden');
+  view={name:'home'};stack=[];render();updateUndo();
+};
+
+/* deterministic driving API (screenshots / testing) */
+window.DEMO={
+  login(op){operator=op||'Alessandro';$('opName').textContent=operator;$('gate').classList.add('hidden');view={name:'home'};stack=[];render();updateUndo();},
+  scan(c){dispatch(c);},
+  loadScaffali(){scaffaliLoaded=true;if(view.name==='home')render();},
+  scaffale(s){view={name:'scaffale',code:s};stack=[{name:'home'}];render();},
+  ripiano(r){view={name:'ripiano',code:r};stack=[{name:'home'}];render();},
+  card(c){openProductCard(c);},
+  moveFirst(r){const pl=onRipiano(r)[0];if(pl)startMove(pl.pid,r);},
+  openScan(){openScan();},
+  openCam(){openScan();setScanTab('cam');},
+  scanDemo(){ openScan();
+    pushScanLog({type:'product',code:'240000304'},'a scaffale');
+    pushScanLog({type:'ripiano',code:'R00140'},'ripiano aperto');
+    pushScanLog({type:'scaffale',code:'S00028'},'scaffale aperto');
+    const i=$('scanIn'); if(i)i.value='027757044';
+  }
+};
+</script>
+<script>if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("sw.js").catch(function(){});});}</script>
+</body>
+</html>
