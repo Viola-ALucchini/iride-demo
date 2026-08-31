@@ -248,7 +248,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
 .batchbar{background:var(--berry-ink);color:#fff;border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .batchbar .bb-tx{flex:1;min-width:0}
 .batchbar b{display:block;font-size:14px;letter-spacing:.05em}
-.batchbar span{display:block;font-size:12px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.batchbar span{display:block;font-size:12px;opacity:.9;line-height:1.35;margin-top:2px}
 .batchbar button{flex:0 0 auto;border:none;border-radius:9px;padding:9px 12px;font-weight:800;font-size:13px}
 .batchbar #bbEnd{background:#fff;color:var(--berry-ink)}
 .batchbar #bbUndo{background:rgba(255,255,255,.18);color:#fff;font-size:16px;padding:7px 11px}
@@ -293,7 +293,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
   <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
   <button class="entra" id="btnEntra">ENTRA</button>
-  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v15</b></div>
+  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v16</b></div>
   <div class="pv" id="gateData">dati: caricamento…</div>
 </div>
 
@@ -704,11 +704,11 @@ function renderRipiano(m,r){
     (lastOp&&(lastOp.r===r||lastOp.to===r) ? '<div class="contbar"><div class="tx">'+
       ({add:'Aggiunto <b>'+lastOp.name+'</b> qui.',rem:'Tolto <b>'+lastOp.name+'</b> da qui.',move:'Spostato <b>'+lastOp.name+'</b> '+lastOp.r+' → '+lastOp.to+'.'}[lastOp.kind])+
       '</div><button class="go" id="contGo">Continua in serie ›</button><button class="x" id="contX">×</button></div>' : '')+
-    '<div class="batchrow"><button class="add" id="bAdd">＋ Aggiungi in serie</button><button class="rem" id="bRem">− Togli in serie</button><button class="move" id="bMove">→ Sposta in serie</button></div>'+
+    '<div class="batchrow"><button class="add" id="bAdd">＋ Aggiungi in serie</button><button class="rem" id="bRem">− Togli in serie</button><button class="move" id="bMove">→ Sposta in serie…</button></div>'+
     '<h2 class="sec">Prodotti su questo ripiano</h2>';
   $('navUp').onclick=()=>{ FX.nav(); openAcc.add(r); go({name:'scaffale',code:scaf}); };
   $('bAdd').onclick=()=>startBatch('add',r); $('bRem').onclick=()=>startBatch('rem',r); $('bMove').onclick=()=>startBatch('move',r);
-  if($('contGo')){ const lo=lastOp; $('contGo').onclick=()=>startBatch(lo.kind,lo.r,lo.to); $('contX').onclick=()=>{ lastOp=null; render(); }; }
+  if($('contGo')){ const lo=lastOp; $('contGo').onclick=()=>startBatch(lo.kind,lo.r); $('contX').onclick=()=>{ lastOp=null; render(); }; }
   if(prev) $('navPrev').onclick=()=>{ FX.nav(); go({name:'ripiano',code:prev}); };
   if(next) $('navNext').onclick=()=>{ FX.nav(); go({name:'ripiano',code:next}); };
   const items=onRipiano(r);
@@ -797,54 +797,66 @@ function armScan(){ if(view.name!=='scaffale') openScan(); }
 /* =========================================================================
    BATCH: tanti prodotti sullo stesso ripiano (aggiungi / togli) o da un ripiano a un altro (sposta)
    ========================================================================= */
-function startBatch(mode,r,to){
-  batch={mode,r,to:to||null,n:0,last:''}; lastOp=null; pendOp=null; renderPending();
+function startBatch(mode,r){
+  batch={mode,r,to:null,n:0,items:[]}; lastOp=null; pendOp=null; renderPending();
   updateBatchBar(); FX.nav(); render(); openScan();
 }
+/* Fine: chiude la serie. Per aggiungi/togli è il termine normale; per sposta senza destinazione letta è un annullo. */
 function endBatch(navigate){
   const b=batch; if(!b) return; batch=null; updateBatchBar();
-  if(navigate){ const dest=(b.mode==='move'&&b.to)?b.to:b.r; closeScan(); go({name:'ripiano',code:dest}); }
-  else render();
-  const w={add:'aggiunti in '+b.r,rem:'tolti da '+b.r,move:'spostati '+b.r+' → '+(b.to||'?')}[b.mode];
+  if(b.mode==='move' && !b.to){
+    if(navigate) closeScan(); else render();
+    toast(b.items.length ? 'Sposta annullato: nessun prodotto spostato' : 'Sposta annullato','err'); return;
+  }
+  if(navigate){ const dest=(b.mode==='move')?b.to:b.r; closeScan(); go({name:'ripiano',code:dest}); } else render();
+  const w={add:'aggiunti in '+b.r,rem:'tolti da '+b.r,move:'spostati '+b.r+' → '+b.to}[b.mode];
   toast(b.n+' '+w, b.mode==='rem'?'err':b.mode);
 }
 function batchTitle(){
   if(!batch) return '';
-  if(batch.mode==='add') return 'AGGIUNGI in '+batch.r;
-  if(batch.mode==='rem') return 'TOGLI da '+batch.r;
-  return batch.to ? 'SPOSTA '+batch.r+' → '+batch.to : 'SPOSTA da '+batch.r+' → ?';
+  if(batch.mode==='add') return 'AGGIUNGI in '+batch.r+' · '+batch.n;
+  if(batch.mode==='rem') return 'TOGLI da '+batch.r+' · '+batch.n;
+  return 'SPOSTA da '+batch.r+' · '+batch.items.length+' raccolti';
+}
+function batchHint(){
+  if(!batch) return '';
+  if(batch.mode==='add') return 'Leggi uno per uno i prodotti da mettere qui. Un altro ripiano letto cambia destinazione. Fine quando hai finito.';
+  if(batch.mode==='rem') return 'Leggi uno per uno i prodotti da togliere da qui. Fine quando hai finito.';
+  return batch.items.length ? 'Altri prodotti, oppure leggi il ripiano di destinazione: li sposta tutti.' : '1) Leggi i prodotti da spostare   2) leggi il ripiano di destinazione.';
 }
 function updateBatchBar(){
   const bar=$('batchBar'); if(!bar) return;
   bar.classList.toggle('hidden',!batch); if(!batch) return;
-  $('bbTitle').textContent=batchTitle();
-  $('bbSub').textContent=(batch.mode==='move'&&!batch.to) ? (batch.last||'Leggi il ripiano di destinazione') : (batch.n+' fatti'+(batch.last?' · '+batch.last:'') );
+  $('bbTitle').textContent=batchTitle(); $('bbSub').textContent=batchHint();
   const m=$('camMsg'); if(m&&camTimer) m.textContent=camPrompt();
 }
 function batchRead(raw){
   const r=classify(raw); if(r.type==='empty') return;
+  const pname=pid=>PRODUCTS[pid].name;
   let out='';
   if(r.type==='ripiano'){
-    if(!RIPIANI[r.code]){ FX.err(); batch.last='ripiano '+r.code+' inesistente'; out='inesistente'; }
-    else if(batch.mode==='move'){ if(r.code===batch.r){ FX.err(); batch.last='stesso ripiano di partenza'; out='uguale'; } else { batch.to=r.code; FX.open(); batch.last=''; out='destinazione '+r.code; } }
-    else { batch.r=r.code; FX.open(); batch.last=''; out='ora su '+r.code; }
+    if(!RIPIANI[r.code]){ FX.err(); toast('Ripiano '+r.code+' inesistente','err'); out='inesistente'; }
+    else if(batch.mode==='move'){
+      if(r.code===batch.r){ FX.err(); toast('È il ripiano di partenza: leggi quello di destinazione','err'); out='partenza'; }
+      else if(!batch.items.length){ FX.err(); toast('Prima leggi i prodotti da spostare','err'); out='nessun prodotto'; }
+      else { batch.to=r.code; batch.items.forEach(pid=>{ if(doMove(pid,batch.r,r.code,true)) batch.n++; }); pushScanLog(r,'destinazione'); endBatch(true); return; }
+    }
+    else { batch.r=r.code; FX.open(); toast('Ora '+(batch.mode==='add'?'aggiungi in ':'togli da ')+r.code, batch.mode==='add'?'add':'err'); out='ora su '+r.code; }
     updateBatchBar(); pushScanLog(r,out); return;
   }
-  if(r.type!=='product'){ FX.err(); batch.last='in serie leggi prodotti (o un ripiano)'; updateBatchBar(); pushScanLog(r,'ignorato'); return; }
-  let pid=resolve(r.code), note='';
-  const nm=()=>PRODUCTS[pid].name;
+  if(r.type!=='product'){ FX.err(); toast('In serie si leggono prodotti (o un ripiano)','err'); pushScanLog(r,'ignorato'); return; }
+  let pid=resolve(r.code);
   if(batch.mode==='add'){
-    if(!pid){ pid=createPending(r.code); note='in attesa Farmadati'; }
-    if(doAdd(pid,batch.r,true)){ batch.n++; batch.last=nm()+(note?' · '+note:''); out='aggiunto'; }
-    else { batch.last='già presente: '+nm(); out='già presente'; }
+    if(!pid) pid=createPending(r.code);
+    if(doAdd(pid,batch.r,true)){ batch.n++; toast('Aggiunto: '+pname(pid),'add'); out='aggiunto'; }
+    else { toast('Già su '+batch.r+': '+pname(pid),'err'); out='già presente'; }
   } else if(batch.mode==='rem'){
-    if(!pid||!PLC.some(p=>p.pid===pid&&p.r===batch.r)){ FX.err(); batch.last='non è su '+batch.r+': '+(pid?nm():r.code); out='non presente'; }
-    else if(doRemove(pid,batch.r,true)){ batch.n++; batch.last=nm(); out='tolto'; }
+    if(!pid||!PLC.some(p=>p.pid===pid&&p.r===batch.r)){ FX.err(); toast('Non è su '+batch.r+': '+(pid?pname(pid):r.code),'err'); out='non presente'; }
+    else if(doRemove(pid,batch.r,true)){ batch.n++; toast('Tolto: '+pname(pid),'err'); out='tolto'; }
   } else {
-    if(!batch.to){ FX.err(); batch.last='prima leggi il ripiano di destinazione'; out='manca destinazione'; }
-    else if(!pid||!PLC.some(p=>p.pid===pid&&p.r===batch.r)){ FX.err(); batch.last='non è su '+batch.r+': '+(pid?nm():r.code); out='non presente'; }
-    else if(doMove(pid,batch.r,batch.to,true)){ batch.n++; batch.last=nm(); out='spostato'; }
-    else { batch.last='già in '+batch.to+': '+nm(); out='già presente'; }
+    if(!pid||!PLC.some(p=>p.pid===pid&&p.r===batch.r)){ FX.err(); toast('Non è su '+batch.r+': '+(pid?pname(pid):r.code),'err'); out='non presente'; }
+    else if(batch.items.indexOf(pid)>=0){ FX.err(); toast('Già raccolto: '+pname(pid),'err'); out='doppio'; }
+    else { batch.items.push(pid); FX.move(); toast('Raccolto: '+pname(pid)+' ('+batch.items.length+')','move'); out='raccolto'; }
   }
   updateBatchBar(); pushScanLog(r,out); updateUndo();
 }
@@ -896,7 +908,11 @@ function undoLast(){
   toast('Annullato','dup'); buzz(20); render(); updateUndo();
 }
 $('btnUndo').onclick=undoLast;
-$('bbUndo').onclick=()=>{ if(!actions.length) return; undoLast(); if(batch&&batch.n>0){ batch.n--; batch.last='annullata l\u2019ultima'; updateBatchBar(); } };
+$('bbUndo').onclick=()=>{
+  if(!batch) return;
+  if(batch.mode==='move'){ const pid=batch.items.pop(); if(pid) toast('Tolto dalla raccolta: '+PRODUCTS[pid].name,'err'); updateBatchBar(); return; }
+  if(!actions.length||batch.n===0) return; undoLast(); batch.n--; toast('Annullata l\u2019ultima','err'); updateBatchBar();
+};
 $('bbEnd').onclick=()=>endBatch(true);
 
 /* =========================================================================
@@ -960,7 +976,7 @@ function reticleROI(v){
   const w=Math.round((1-RET.l-RET.r)*W/sc), h=Math.round((1-RET.t-RET.b)*H/sc);
   return {x:Math.max(0,x),y:Math.max(0,y),w:Math.min(w,vw-x),h:Math.min(h,vh-y)};
 }
-function camPrompt(){ if(batch) return (batch.mode==='move'&&!batch.to) ? 'Leggi il ripiano di destinazione' : 'Leggi i prodotti uno dopo l\u2019altro'; return pendOp ? 'Leggi il ripiano di destinazione' : 'Inquadra il codice…'; }
+function camPrompt(){ if(batch) return batch.mode!=='move' ? 'Leggi i prodotti uno dopo l\u2019altro' : (batch.items.length ? 'Altri prodotti, o il ripiano di destinazione' : 'Leggi i prodotti da spostare'); return pendOp ? 'Leggi il ripiano di destinazione' : 'Inquadra il codice…'; }
 let camLastRaw='', camLastT=0;
 function camRead(raw){
   if(batch){
