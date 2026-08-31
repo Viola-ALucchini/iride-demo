@@ -140,7 +140,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   background:var(--card);border:1px dashed var(--line);border-radius:14px}
 
 /* product card sheet */
-.sheet-wrap{position:fixed;top:0;left:0;right:0;bottom:0;z-index:40;background:rgba(42,13,29,.5);
+.sheet-wrap{position:fixed;top:0;left:0;right:0;bottom:0;z-index:50;background:rgba(42,13,29,.5);
   display:flex;align-items:flex-end}
 .sheet{background:var(--cream);width:100%;border-radius:20px 20px 0 0;padding:18px 16px 16px;
   max-height:86dvh;overflow-y:auto;box-shadow:0 -10px 40px rgba(0,0,0,.3)}
@@ -259,7 +259,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
   <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
   <button class="entra" id="btnEntra">ENTRA</button>
-  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v4</b></div>
+  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v5</b></div>
 </div>
 
 <header>
@@ -550,8 +550,9 @@ function openProductCard(code){
   const pid=resolve(code);
   const wrap=document.createElement('div');wrap.className='sheet-wrap';
   const sh=document.createElement('div');sh.className='sheet';wrap.appendChild(sh);
-  const closeAll=()=>wrap.remove();
+  const closeAll=()=>{wrap.remove();sheetClosed();};
   wrap.onclick=e=>{if(e.target===wrap)closeAll();};
+  sheetOpened();
 
   if(!pid){
     FX.err();
@@ -597,9 +598,9 @@ function openProductCard(code){
 
   sh.querySelectorAll('[data-goto]').forEach(b=>b.onclick=()=>{closeAll();FX.open();openRipiano(b.dataset.goto);});
   const hb=sh.querySelector('[data-here]'); if(hb)hb.onclick=()=>{closeAll();doAdd(pid,hb.dataset.here);};
-  sh.querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>{closeAll();startMove(pid,b.dataset.move);});
+  sh.querySelectorAll('[data-move]').forEach(b=>b.onclick=()=>{startMove(pid,b.dataset.move);closeAll();});
   const mh=sh.querySelector('[data-movehere]'); if(mh)mh.onclick=()=>{closeAll();doMove(pid,places[0].r,mh.dataset.movehere);};
-  const ae=sh.querySelector('[data-addelse]'); if(ae)ae.onclick=()=>{closeAll();startAdd(pid);};
+  const ae=sh.querySelector('[data-addelse]'); if(ae)ae.onclick=()=>{startAdd(pid);closeAll();};
   sh.querySelector('.close').onclick=closeAll;
   document.body.appendChild(wrap);
 }
@@ -744,7 +745,10 @@ function proposeCam(raw){
 }
 function hideConfirm(){ $('camConfirm').classList.add('hidden'); const f=document.querySelector('.cam-frame'); if(f) f.classList.remove('paused'); }
 function resumeCam(){ hideConfirm(); camProposed=''; camPrev=''; camHits=0; $('camMsg').textContent='Inquadra il codice…'; setTimeout(function(){camPaused=false;},400); }
-function confirmCam(){ const raw=camProposed; if(!raw) return; hideConfirm(); dispatch(raw); camProposed=''; camPrev=''; camHits=0; $('camMsg').textContent='Inquadra il codice…'; setTimeout(function(){camPaused=false;},700); }
+function camPrompt(){ return pendOp ? 'Leggi il ripiano di destinazione' : 'Inquadra il codice…'; }
+function confirmCam(){ const raw=camProposed; if(!raw) return; hideConfirm(); dispatch(raw); camProposed=''; camPrev=''; camHits=0; $('camMsg').textContent=camPrompt(); setTimeout(function(){ if(!document.querySelector('.sheet-wrap')) camPaused=false; },700); }
+function sheetOpened(){ if(camTimer) camPaused=true; }
+function sheetClosed(){ if(!camTimer) return; camPrev=''; camHits=0; $('camMsg').textContent=camPrompt(); setTimeout(function(){camPaused=false;},400); }
 function openScan(){ $('scanWrap').classList.remove('hidden'); setScanTab('hid'); }
 function closeScan(){ $('scanWrap').classList.add('hidden'); stopCamera(); }
 function setScanTab(tab){
