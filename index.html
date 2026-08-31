@@ -157,6 +157,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
 .role.prin{background:#efe7eb;color:var(--berry)}
 .role.park{background:var(--err-bg);color:#8a261b;margin-right:6px}
 .role.fd{background:var(--add-bg);color:#205a2a;margin-right:6px}
+.role.pend{background:var(--move-bg);color:var(--move);margin-right:6px}
 .pcat{font-size:12px;color:var(--muted);margin:-4px 0 8px}
 .emptybox{text-align:center;color:var(--muted);font-size:14px;padding:26px 10px;line-height:1.5;
   background:var(--card);border:1px dashed var(--line);border-radius:14px}
@@ -244,6 +245,20 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
 .scan-head{display:flex;align-items:center;margin-bottom:12px}
 .scan-title{font-size:19px;font-weight:800}
 .scan-close{margin-left:auto;background:none;border:none;color:var(--muted);font-size:15px;font-weight:700}
+.batchbar{background:var(--berry-ink);color:#fff;border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.batchbar .bb-tx{flex:1;min-width:0}
+.batchbar b{display:block;font-size:14px;letter-spacing:.05em}
+.batchbar span{display:block;font-size:12px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.batchbar button{flex:0 0 auto;border:none;border-radius:9px;padding:9px 12px;font-weight:800;font-size:13px}
+.batchbar #bbEnd{background:#fff;color:var(--berry-ink)}
+.batchbar #bbUndo{background:rgba(255,255,255,.18);color:#fff;font-size:16px;padding:7px 11px}
+.batchrow{display:flex;gap:8px;margin:-4px 0 12px}
+.batchrow button{flex:1;border:1px solid var(--line);background:var(--card);border-radius:11px;padding:10px 4px;font-weight:700;font-size:12.5px;color:var(--berry-ink)}
+.batchrow button.add{color:var(--add)} .batchrow button.rem{color:var(--err)} .batchrow button.move{color:var(--move)}
+.contbar{background:var(--dup-bg);border:1px solid var(--dup);border-radius:12px;padding:10px 12px;margin-bottom:12px;display:flex;align-items:center;gap:8px;font-size:13px;color:#5a3a06}
+.contbar .tx{flex:1;min-width:0}
+.contbar .go{background:var(--dup);color:#fff;border:none;border-radius:9px;padding:9px 12px;font-weight:800;font-size:13px;white-space:nowrap}
+.contbar .x{background:none;border:none;font-size:20px;line-height:1;color:#8a5708;padding:2px 4px}
 .scan-tabs{display:flex;background:var(--cream-2);border-radius:11px;padding:4px;margin-bottom:14px}
 .scan-tab{flex:1;background:none;border:none;color:var(--muted);font-weight:800;font-size:14px;padding:10px;border-radius:8px}
 .scan-tab.active{background:#fff;color:var(--berry);box-shadow:0 1px 4px rgba(90,20,60,.1)}
@@ -278,7 +293,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
   <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
   <button class="entra" id="btnEntra">ENTRA</button>
-  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v13</b></div>
+  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v15</b></div>
   <div class="pv" id="gateData">dati: caricamento…</div>
 </div>
 
@@ -318,6 +333,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
       <div class="scan-title">Scansione</div>
       <button class="scan-close" id="scanClose">Chiudi</button>
     </div>
+    <div class="batchbar hidden" id="batchBar"><div class="bb-tx"><b id="bbTitle"></b><span id="bbSub"></span></div><button id="bbUndo" title="Annulla ultima">↶</button><button id="bbEnd">Fine</button></div>
     <div class="scan-tabs">
       <button class="scan-tab active" id="tabCam" data-tab="cam">Fotocamera</button>
       <button class="scan-tab" id="tabHid" data-tab="hid">Lettore esterno</button>
@@ -372,7 +388,33 @@ function farmadatiLookup(code){        // → {minsan, name, cat, atc, ean?} | n
   else if(code.length<9 && code.length>=5 && FARMADATI[code.padStart(9,'0')]) m=code.padStart(9,'0');
   return m ? Object.assign({minsan:m}, FARMADATI[m]) : null;
 }
-function createProduct(codes,name,cat,src){   // src: 'farmadati' | 'park'
+/* Codice non in anagrafica: si aggiunge SUBITO come "in attesa di risposta da Farmadati".
+   La risposta arriva dopo (nel prodotto: job sul mirror/WS Farmadati; qui: simulata in 1,5–3,5 s)
+   e completa la referenza, oppure la marca "da completare a desktop". */
+const FD_DELAY=()=>1500+Math.random()*2000;
+function createPending(code){
+  const pid='n'+code;
+  if(PRODUCTS[pid]) return pid;
+  PRODUCTS[pid]={name:'IN ATTESA FARMADATI · '+code, cat:'W - Da classificare', codes:[code], src:'pending'};
+  CODE2ID[code]=pid;
+  setTimeout(function(){ resolvePending(pid,code); }, FD_DELAY());
+  return pid;
+}
+function resolvePending(pid,code){
+  const p=PRODUCTS[pid]; if(!p||p.src!=='pending') return;
+  const fd=farmadatiLookup(code);
+  if(fd){
+    p.name=fd.name; p.cat=fd.cat; p.atc=fd.atc; p.src='farmadati';
+    [fd.minsan, fd.ean].filter(Boolean).forEach(c=>{ if(p.codes.indexOf(c)<0) p.codes.push(c); CODE2ID[c]=pid; });
+    p.codes.sort((a,b)=>a.length-b.length);   // MINSAN prima dell'EAN
+    toast('Farmadati: '+fd.name,'add');
+  } else {
+    p.name='DA COMPLETARE · '+code; p.src='park';
+    toast('Farmadati non conosce '+code+': da completare a desktop','err');
+  }
+  if(!document.querySelector('.sheet-wrap')) render();
+}
+function createProduct(codes,name,cat,src){   // src: 'farmadati' | 'park' (usato dal caricamento dati)
   const pid='n'+codes[0];
   if(!PRODUCTS[pid]){ PRODUCTS[pid]={name,cat,codes:codes.slice(),src}; codes.forEach(c=>CODE2ID[c]=pid); }
   return pid;
@@ -479,6 +521,8 @@ let operator='';
 let actions=[];              // undo log
 let scaffaliLoaded=false;    // scaffali fetched from backend?
 let lastScan=null;           // {type,code,out} for the scan console
+let batch=null;              // {mode:'add'|'rem'|'move', r, to, n, last}
+let lastOp=null;             // ultima operazione singola: {kind, r, to, name} → offerta 'continua in serie'
 
 function go(v,push=true){ if(push && view) stack.push(view); view=v; render(); }
 function back(){ if(stack.length){ view=stack.pop(); render(); } }
@@ -534,10 +578,16 @@ function renderHome(m){
       m.appendChild(b);
     });
   }
+  const pend=Object.keys(PRODUCTS).filter(k=>PRODUCTS[k].src==='pending').length;
   const parked=Object.keys(PRODUCTS).filter(k=>PRODUCTS[k].src==='park').length;
+  if(pend){
+    const d=document.createElement('div');d.className='emptybox';d.style.cssText='background:var(--move-bg);border-color:var(--move);color:var(--move);margin-top:10px';
+    d.innerHTML='<b>'+pend+'</b> '+(pend===1?'referenza':'referenze')+' in attesa di risposta da Farmadati.';
+    m.appendChild(d);
+  }
   if(parked){
     const d=document.createElement('div');d.className='emptybox';d.style.cssText='background:var(--err-bg);border-color:var(--err);color:#8a261b;margin-top:10px';
-    d.innerHTML='<b>'+parked+'</b> '+(parked===1?'codice parcheggiato':'codici parcheggiati')+' senza anagrafica: da completare a desktop.';
+    d.innerHTML='<b>'+parked+'</b> '+(parked===1?'referenza':'referenze')+' che Farmadati non conosce: da completare a desktop.';
     m.appendChild(d);
   }
   if(actions.length){
@@ -560,7 +610,7 @@ function productRow(pl,r){
   const p=PRODUCTS[pl.pid]; const dup=ripianiOf(pl.pid).length>1;
   const row=document.createElement('div');row.className='pcard';
   row.innerHTML='<div class="pcard-top"><div class="pinfo"><div class="nm">'+p.name+'</div><div class="cd">'+p.codes[0]+(p.codes[1]?' · EAN '+p.codes[1]:'')+'</div></div>'+
-    (p.src==='park'?'<span class="role park">da completare</span>':p.src==='farmadati'?'<span class="role fd">nuova</span>':'')+
+    (p.src==='pending'?'<span class="role pend">in attesa Farmadati</span>':p.src==='park'?'<span class="role park">da completare</span>':p.src==='farmadati'?'<span class="role fd">nuova</span>':'')+
     (dup?'<span class="role '+(pl.role==='prin'?'prin':'')+'">'+(pl.role==='prin'?'principale':'duplicato')+'</span>':'')+
     '</div><div class="pcard-acts"></div>';
   const acts=row.querySelector('.pcard-acts');
@@ -651,8 +701,14 @@ function renderRipiano(m,r){
   m.innerHTML='<div class="navbar"><button class="up" id="navUp">‹ '+scaf+' · '+SCAFFALI[scaf]+'</button>'+
     '<button id="navPrev" '+(prev?'':'disabled')+'>‹ '+(prev||'—')+'</button><button id="navNext" '+(next?'':'disabled')+'>'+(next||'—')+' ›</button></div>'+
     '<div class="rhead"><div class="code">'+r+' <small>scaffale '+scaf+'</small></div><div class="sub">'+SCAFFALI[scaf]+' · ripiano '+(i+1)+' di '+sib.length+' · '+onRipiano(r).length+' prodotti</div></div>'+
+    (lastOp&&(lastOp.r===r||lastOp.to===r) ? '<div class="contbar"><div class="tx">'+
+      ({add:'Aggiunto <b>'+lastOp.name+'</b> qui.',rem:'Tolto <b>'+lastOp.name+'</b> da qui.',move:'Spostato <b>'+lastOp.name+'</b> '+lastOp.r+' → '+lastOp.to+'.'}[lastOp.kind])+
+      '</div><button class="go" id="contGo">Continua in serie ›</button><button class="x" id="contX">×</button></div>' : '')+
+    '<div class="batchrow"><button class="add" id="bAdd">＋ Aggiungi in serie</button><button class="rem" id="bRem">− Togli in serie</button><button class="move" id="bMove">→ Sposta in serie</button></div>'+
     '<h2 class="sec">Prodotti su questo ripiano</h2>';
   $('navUp').onclick=()=>{ FX.nav(); openAcc.add(r); go({name:'scaffale',code:scaf}); };
+  $('bAdd').onclick=()=>startBatch('add',r); $('bRem').onclick=()=>startBatch('rem',r); $('bMove').onclick=()=>startBatch('move',r);
+  if($('contGo')){ const lo=lastOp; $('contGo').onclick=()=>startBatch(lo.kind,lo.r,lo.to); $('contX').onclick=()=>{ lastOp=null; render(); }; }
   if(prev) $('navPrev').onclick=()=>{ FX.nav(); go({name:'ripiano',code:prev}); };
   if(next) $('navNext').onclick=()=>{ FX.nav(); go({name:'ripiano',code:next}); };
   const items=onRipiano(r);
@@ -675,33 +731,17 @@ function openProductCard(code){
   wrap.onclick=e=>{if(e.target===wrap)closeAll();};
 
   if(!pid){
-    const fd=farmadatiLookup(code);
     const here=(view.name==='ripiano')?view.code:null;
-    if(fd){
-      FX.nav();
-      sh.innerHTML='<div class="grip"></div><div class="pname">'+fd.name+'</div>'+
-        '<div class="pcat">'+fd.cat+' · ATC '+fd.atc+'</div><div class="pcode"><span>MINSAN</span> '+fd.minsan+(fd.ean&&fd.ean!==code?' <span>EAN</span> '+fd.ean:'')+(code!==fd.minsan?' <span>letto</span> '+code:'')+'</div>'+
-        '<div class="status unplaced">Trovato in <b>Farmadati</b>, non ancora in anagrafica. Con l\u2019aggiunta la referenza viene creata con nome e categoria Farmadati.</div>'+
-        '<h4>Aggiungi</h4>'+
-        (here?'<button class="bigbtn add" data-fdhere="'+here+'">Aggiungi qui — '+here+'</button>':'')+
-        '<button class="bigbtn ghost" data-fdscan="1">Aggiungi — spara ripiano di destinazione</button>'+
-        '<div class="sheet-foot"><button class="close">Chiudi</button><button class="rescan">⌖&nbsp; Scansiona</button></div>';
-      const mk=()=>createProduct([fd.minsan].concat(fd.ean?[fd.ean]:[]).concat(code!==fd.minsan&&code!==fd.ean?[code]:[]), fd.name, fd.cat, 'farmadati');
-      const hb=sh.querySelector('[data-fdhere]'); if(hb)hb.onclick=()=>{const np=mk();closeAll();doAdd(np,hb.dataset.fdhere);};
-      sh.querySelector('[data-fdscan]').onclick=()=>{const np=mk();startAdd(np);closeAll();armScan();};
-    } else {
-      FX.err();
-      sh.innerHTML='<div class="grip"></div><div class="pname">Codice sconosciuto</div>'+
-        '<div class="pcode"><span>codice</span> '+code+'</div>'+
-        '<div class="status unknown">Non in anagrafica e non in Farmadati. Puoi <b>parcheggiarlo</b> su un ripiano: la posizione viene registrata adesso, nome e categoria si completano a desktop.</div>'+
-        '<h4>Parcheggia</h4>'+
-        (here?'<button class="bigbtn add" data-pkhere="'+here+'">Parcheggia qui — '+here+'</button>':'')+
-        '<button class="bigbtn ghost" data-pkscan="1">Parcheggia — spara ripiano di destinazione</button>'+
-        '<div class="sheet-foot"><button class="close">Chiudi</button><button class="rescan">⌖&nbsp; Scansiona</button></div>';
-      const mk=()=>createProduct([code], 'DA COMPLETARE · '+code, 'W - Da classificare', 'park');
-      const hb=sh.querySelector('[data-pkhere]'); if(hb)hb.onclick=()=>{const np=mk();closeAll();doAdd(np,hb.dataset.pkhere);};
-      sh.querySelector('[data-pkscan]').onclick=()=>{const np=mk();startAdd(np);closeAll();armScan();};
-    }
+    FX.nav();
+    sh.innerHTML='<div class="grip"></div><div class="pname">Codice non in anagrafica</div>'+
+      '<div class="pcode"><span>letto</span> '+code+'</div>'+
+      '<div class="status unplaced">Lo aggiungo subito <b>in attesa di risposta da Farmadati</b>: nome, categoria e ATC arrivano appena risponde. Se non lo conosce, resta da completare a desktop.</div>'+
+      '<h4>Aggiungi</h4>'+
+      (here?'<button class="bigbtn add" data-pdhere="'+here+'">Aggiungi qui — '+here+'</button>':'')+
+      '<button class="bigbtn ghost" data-pdscan="1">Aggiungi — spara ripiano di destinazione</button>'+
+      '<div class="sheet-foot"><button class="close">Chiudi</button><button class="rescan">⌖&nbsp; Scansiona</button></div>';
+    const hb=sh.querySelector('[data-pdhere]'); if(hb)hb.onclick=()=>{const np=createPending(code);closeAll();doAdd(np,hb.dataset.pdhere);};
+    sh.querySelector('[data-pdscan]').onclick=()=>{const np=createPending(code);startAdd(np);closeAll();armScan();};
     sh.querySelector('.close').onclick=closeAll; sh.querySelector('.rescan').onclick=()=>{closeAll();openScan();};
     document.body.appendChild(wrap); return;
   }
@@ -753,6 +793,61 @@ function openProductCard(code){
    MUTATIONS  (+ pending destination flow)
    ========================================================================= */
 function armScan(){ if(view.name!=='scaffale') openScan(); }
+
+/* =========================================================================
+   BATCH: tanti prodotti sullo stesso ripiano (aggiungi / togli) o da un ripiano a un altro (sposta)
+   ========================================================================= */
+function startBatch(mode,r,to){
+  batch={mode,r,to:to||null,n:0,last:''}; lastOp=null; pendOp=null; renderPending();
+  updateBatchBar(); FX.nav(); render(); openScan();
+}
+function endBatch(navigate){
+  const b=batch; if(!b) return; batch=null; updateBatchBar();
+  if(navigate){ const dest=(b.mode==='move'&&b.to)?b.to:b.r; closeScan(); go({name:'ripiano',code:dest}); }
+  else render();
+  const w={add:'aggiunti in '+b.r,rem:'tolti da '+b.r,move:'spostati '+b.r+' → '+(b.to||'?')}[b.mode];
+  toast(b.n+' '+w, b.mode==='rem'?'err':b.mode);
+}
+function batchTitle(){
+  if(!batch) return '';
+  if(batch.mode==='add') return 'AGGIUNGI in '+batch.r;
+  if(batch.mode==='rem') return 'TOGLI da '+batch.r;
+  return batch.to ? 'SPOSTA '+batch.r+' → '+batch.to : 'SPOSTA da '+batch.r+' → ?';
+}
+function updateBatchBar(){
+  const bar=$('batchBar'); if(!bar) return;
+  bar.classList.toggle('hidden',!batch); if(!batch) return;
+  $('bbTitle').textContent=batchTitle();
+  $('bbSub').textContent=(batch.mode==='move'&&!batch.to) ? (batch.last||'Leggi il ripiano di destinazione') : (batch.n+' fatti'+(batch.last?' · '+batch.last:'') );
+  const m=$('camMsg'); if(m&&camTimer) m.textContent=camPrompt();
+}
+function batchRead(raw){
+  const r=classify(raw); if(r.type==='empty') return;
+  let out='';
+  if(r.type==='ripiano'){
+    if(!RIPIANI[r.code]){ FX.err(); batch.last='ripiano '+r.code+' inesistente'; out='inesistente'; }
+    else if(batch.mode==='move'){ if(r.code===batch.r){ FX.err(); batch.last='stesso ripiano di partenza'; out='uguale'; } else { batch.to=r.code; FX.open(); batch.last=''; out='destinazione '+r.code; } }
+    else { batch.r=r.code; FX.open(); batch.last=''; out='ora su '+r.code; }
+    updateBatchBar(); pushScanLog(r,out); return;
+  }
+  if(r.type!=='product'){ FX.err(); batch.last='in serie leggi prodotti (o un ripiano)'; updateBatchBar(); pushScanLog(r,'ignorato'); return; }
+  let pid=resolve(r.code), note='';
+  const nm=()=>PRODUCTS[pid].name;
+  if(batch.mode==='add'){
+    if(!pid){ pid=createPending(r.code); note='in attesa Farmadati'; }
+    if(doAdd(pid,batch.r,true)){ batch.n++; batch.last=nm()+(note?' · '+note:''); out='aggiunto'; }
+    else { batch.last='già presente: '+nm(); out='già presente'; }
+  } else if(batch.mode==='rem'){
+    if(!pid||!PLC.some(p=>p.pid===pid&&p.r===batch.r)){ FX.err(); batch.last='non è su '+batch.r+': '+(pid?nm():r.code); out='non presente'; }
+    else if(doRemove(pid,batch.r,true)){ batch.n++; batch.last=nm(); out='tolto'; }
+  } else {
+    if(!batch.to){ FX.err(); batch.last='prima leggi il ripiano di destinazione'; out='manca destinazione'; }
+    else if(!pid||!PLC.some(p=>p.pid===pid&&p.r===batch.r)){ FX.err(); batch.last='non è su '+batch.r+': '+(pid?nm():r.code); out='non presente'; }
+    else if(doMove(pid,batch.r,batch.to,true)){ batch.n++; batch.last=nm(); out='spostato'; }
+    else { batch.last='già in '+batch.to+': '+nm(); out='già presente'; }
+  }
+  updateBatchBar(); pushScanLog(r,out); updateUndo();
+}
 function startMove(pid,from){ pendOp={op:'move',pid,from}; renderPending(); if(view.name==='scaffale') render();
   toast('Spara il ripiano di destinazione','move'); FX.nav(); }
 function startAdd(pid){ pendOp={op:'add',pid}; renderPending(); if(view.name==='scaffale') render();
@@ -762,46 +857,53 @@ function cancelPending(){ pendOp=null; renderPending(); if(view.name==='scaffale
 function completePending(dest){
   if(!RIPIANI[dest]){ FX.err(); toast('Ripiano '+dest+' inesistente','err'); return; }
   const {op,pid,from}=pendOp;
-  if(op==='add'){ pendOp=null; doAdd(pid,dest); }
+  if(op==='add'){ pendOp=null; if(doAdd(pid,dest) && !(view.name==='ripiano'&&view.code===dest)) go({name:'ripiano',code:dest}); }   // atterra sulla destinazione, come lo sposta
   else { pendOp=null; doMove(pid,from,dest); }
 }
 
-function doAdd(pid,r){
-  if(PLC.some(p=>p.pid===pid&&p.r===r)){ FX.err(); toast('Già presente in '+r,'err'); return; }
+function doAdd(pid,r,silent){
+  if(PLC.some(p=>p.pid===pid&&p.r===r)){ FX.err(); if(!silent) toast('Già presente in '+r,'err'); return false; }
   const has=PLC.some(p=>p.pid===pid);
   PLC.push({pid,r,role:has?'sub':'prin'});
   actions.unshift({kind:'add',pid,r,name:PRODUCTS[pid].name,detail:'in '+r});
-  FX.add(); toast('Aggiunto in '+r,'add'); afterMutation(r);
+  FX.add(); if(!silent){ toast('Aggiunto in '+r,'add'); lastOp={kind:'add',r,name:PRODUCTS[pid].name}; } afterMutation(r); return true;
 }
-function doRemove(pid,r){
-  const i=PLC.findIndex(p=>p.pid===pid&&p.r===r); if(i<0)return;
+function doRemove(pid,r,silent){
+  const i=PLC.findIndex(p=>p.pid===pid&&p.r===r); if(i<0)return false;
   PLC.splice(i,1);
   actions.unshift({kind:'rem',pid,r,name:PRODUCTS[pid].name,detail:'da '+r});
-  FX.rem(); toast('Rimosso da '+r,'err'); afterMutation(r);
+  FX.rem(); if(!silent){ toast('Rimosso da '+r,'err'); lastOp={kind:'rem',r,name:PRODUCTS[pid].name}; } afterMutation(r); return true;
 }
-function doMove(pid,from,to){
-  if(PLC.some(p=>p.pid===pid&&p.r===to)){ FX.err(); toast('Già presente in '+to,'err'); return; }
-  const pl=PLC.find(p=>p.pid===pid&&p.r===from); if(!pl){FX.err();return;}
+function doMove(pid,from,to,silent){
+  if(PLC.some(p=>p.pid===pid&&p.r===to)){ FX.err(); if(!silent) toast('Già presente in '+to,'err'); return false; }
+  const pl=PLC.find(p=>p.pid===pid&&p.r===from); if(!pl){FX.err();return false;}
   pl.r=to;
   actions.unshift({kind:'move',pid,from,to,name:PRODUCTS[pid].name,detail:from+' → '+to});
-  FX.move(); toast('Spostato '+from+' → '+to,'move');
+  FX.move();
+  if(silent){ render(); return true; }
+  toast('Spostato '+from+' → '+to,'move'); lastOp={kind:'move',r:from,to,name:PRODUCTS[pid].name};
   view={name:'ripiano',code:to}; render();   // land on destination to show result
+  return true;
 }
 function afterMutation(r){ render(); updateUndo(); }
 function updateUndo(){ $('btnUndo').disabled = actions.length===0; }
 
-$('btnUndo').onclick=()=>{
+function undoLast(){
   const a=actions.shift(); if(!a)return;
   if(a.kind==='add'){ const i=PLC.findIndex(p=>p.pid===a.pid&&p.r===a.r); if(i>=0)PLC.splice(i,1); }
   else if(a.kind==='rem'){ PLC.push({pid:a.pid,r:a.r,role:PLC.some(p=>p.pid===a.pid)?'sub':'prin'}); }
   else if(a.kind==='move'){ const pl=PLC.find(p=>p.pid===a.pid&&p.r===a.to); if(pl)pl.r=a.from; }
   toast('Annullato','dup'); buzz(20); render(); updateUndo();
-};
+}
+$('btnUndo').onclick=undoLast;
+$('bbUndo').onclick=()=>{ if(!actions.length) return; undoLast(); if(batch&&batch.n>0){ batch.n--; batch.last='annullata l\u2019ultima'; updateBatchBar(); } };
+$('bbEnd').onclick=()=>endBatch(true);
 
 /* =========================================================================
    DISPATCH
    ========================================================================= */
 function dispatch(raw){
+  if(batch){ gunBlink(); batchRead(raw); return; }
   const r=classify(raw); gunBlink(); const viewBefore=view;
   let out='';
   if(pendOp){
@@ -858,8 +960,14 @@ function reticleROI(v){
   const w=Math.round((1-RET.l-RET.r)*W/sc), h=Math.round((1-RET.t-RET.b)*H/sc);
   return {x:Math.max(0,x),y:Math.max(0,y),w:Math.min(w,vw-x),h:Math.min(h,vh-y)};
 }
-function camPrompt(){ return pendOp ? 'Leggi il ripiano di destinazione' : 'Inquadra il codice…'; }
+function camPrompt(){ if(batch) return (batch.mode==='move'&&!batch.to) ? 'Leggi il ripiano di destinazione' : 'Leggi i prodotti uno dopo l\u2019altro'; return pendOp ? 'Leggi il ripiano di destinazione' : 'Inquadra il codice…'; }
+let camLastRaw='', camLastT=0;
 function camRead(raw){
+  if(batch){
+    if(raw===camLastRaw && Date.now()-camLastT<2500){ camPrev=''; camHits=0; return; }
+    camLastRaw=raw; camLastT=Date.now(); camPaused=true; camPrev=''; camHits=0;
+    dispatch(raw); setTimeout(function(){camPaused=false;},700); return;
+  }
   // lettura stabile: si va dritti al risultato. La fotocamera si spegne se qualcosa è successo
   // (vista cambiata, scheda aperta, collocazione modificata); resta accesa se la lettura non ha prodotto nulla.
   camPaused=true; camPrev=''; camHits=0;
@@ -874,7 +982,7 @@ function sheetClosed(){ if(!camTimer) return; camPrev=''; camHits=0; $('camMsg')
 function camSupported(){ return !!(window.isSecureContext && ('BarcodeDetector' in window) && navigator.mediaDevices && navigator.mediaDevices.getUserMedia); }
 let scanPref=null;   // ultima tab scelta a mano dall'operatore in questa sessione
 function openScan(){ $('scanWrap').classList.remove('hidden'); setScanTab(scanPref || (camSupported()?'cam':'hid')); }
-function closeScan(){ $('scanWrap').classList.add('hidden'); stopCamera(); }
+function closeScan(){ $('scanWrap').classList.add('hidden'); stopCamera(); if(batch) endBatch(false); }
 function setScanTab(tab){
   const hid=(tab==='hid');
   $('tabHid').classList.toggle('active',hid); $('tabCam').classList.toggle('active',!hid);
