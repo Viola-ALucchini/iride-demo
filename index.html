@@ -87,6 +87,17 @@ header .pv{margin-left:auto;font-size:11px;opacity:.72;text-align:right;line-hei
 
 /* scroll body */
 main{flex:1 1 auto;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:14px 12px 12px}
+main.home{display:flex;flex-direction:column}
+.tools{margin-top:auto;padding-top:18px}
+.tools .sec{margin-bottom:10px}
+.tools-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tool{display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:10px;text-align:left;color:var(--berry-ink);min-height:84px}
+.tool:active{background:var(--cream-2)}
+.tool .ico{flex:0 0 auto;width:60px;height:60px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:#fff}
+.tool .ico svg{width:34px;height:34px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.tool .lbl{flex:1;min-width:0;font-size:14px;font-weight:800;line-height:1.2}
+.tool .lbl small{display:block;font-size:11px;font-weight:600;color:var(--muted);margin-top:3px;line-height:1.3}
+.tool.c-new .ico{background:var(--berry)} .tool.c-struct .ico{background:var(--move)} .tool.c-empty .ico{background:var(--dup)} .tool.c-reset .ico{background:#6b6b6b}
 h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin:2px 4px 10px}
 
 /* home hint */
@@ -306,7 +317,7 @@ h2.sec{font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--
   </div>
   <div class="greet"><span class="hi">Ciao</span><span class="who">Alessandro!!</span></div>
   <button class="entra" id="btnEntra">ENTRA</button>
-  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v21</b></div>
+  <div class="pv">Farmacia Demo · <b>PV 001</b> · app <b>v22</b></div>
   <div class="pv" id="gateData">dati: caricamento…</div>
 </div>
 
@@ -547,7 +558,7 @@ function goHome(){ FX.nav(); stack=[]; view={name:'home'}; render(); }
    ========================================================================= */
 function render(){
   renderCrumb(); renderPending();
-  const m=$('main'); m.scrollTop=0;
+  const m=$('main'); m.scrollTop=0; m.classList.toggle('home',view.name==='home');
   if(view.name==='home') return renderHome(m);
   if(view.name==='scaffale') return (reorderScaf===view.code) ? renderReorder(m,view.code) : renderScaffale(m,view.code);
   if(view.name==='ripiano') return renderRipiano(m,view.code);
@@ -577,7 +588,7 @@ function renderHome(m){
   scan.onclick=openScan;
   m.appendChild(scan);
 
-  const mo=document.createElement('button');mo.className='home-cta secondary';mo.innerHTML='⋯&nbsp; Struttura e strumenti';mo.onclick=()=>openMenu('home');
+
   if(!scaffaliLoaded){
     const f=document.createElement('button');f.className='home-cta secondary';f.id='btnFetch';
     f.innerHTML='↻&nbsp; Recupera elenco scaffali';
@@ -594,7 +605,6 @@ function renderHome(m){
       m.appendChild(b);
     });
   }
-  m.appendChild(mo);
   const pend=Object.keys(PRODUCTS).filter(k=>PRODUCTS[k].src==='pending').length;
   const parked=Object.keys(PRODUCTS).filter(k=>PRODUCTS[k].src==='park').length;
   if(pend){
@@ -616,6 +626,7 @@ function renderHome(m){
       m.appendChild(d);
     });
   }
+  m.appendChild(toolsSection());
 }
 function emptyAll(){
   [SCAFFALI,RIPIANI,ORD,PRODUCTS,CODE2ID].forEach(o=>Object.keys(o).forEach(k=>delete o[k]));
@@ -722,6 +733,25 @@ function openNewRipiano(code){
 }
 
 /* ---- Ordina a mano: righe con maniglia (trascinamento) e frecce ---- */
+const ICONS={
+  newShelf:'<svg viewBox="0 0 24 24"><path d="M4 4h16M4 11h16M4 18h16M6 4v16M18 4v16"/><circle cx="19" cy="17" r="4.5" fill="var(--berry)"/><path d="M19 14.8v4.4M16.8 17h4.4"/></svg>',
+  struct:'<svg viewBox="0 0 24 24"><path d="M3 5h18M3 12h18M3 19h18"/><path d="M6 8.5v2M9 8.5v2M12 8.5v2M15 8.5v2M18 8.5v2"/><path d="M6 15.5v2M9 15.5v2M12 15.5v2M15 15.5v2M18 15.5v2"/></svg>',
+  empty:'<svg viewBox="0 0 24 24"><rect x="2.5" y="6" width="7" height="12" rx="1.5"/><rect x="14.5" y="6" width="7" height="12" rx="1.5"/><path d="M10.5 12h3M11.5 10l2 2-2 2"/><path d="M4.5 9h3M4.5 12h3M4.5 15h3"/></svg>',
+  reset:'<svg viewBox="0 0 24 24"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/></svg>'
+};
+function toolsSection(){
+  const wrap=document.createElement('div');wrap.className='tools';
+  wrap.innerHTML='<h2 class="sec">Struttura e strumenti</h2><div class="tools-grid">'+
+    '<button class="tool c-new" data-t="new"><span class="ico">'+ICONS.newShelf+'</span><span class="lbl">Nuovo scaffale<small>codice + nome</small></span></button>'+
+    '<button class="tool c-struct" data-t="struct"><span class="ico">'+ICONS.struct+'</span><span class="lbl">Scaffali e ripiani in serie<small>leggi scaffale, poi i ripiani</small></span></button>'+
+    '<button class="tool c-empty" data-t="empty"><span class="ico">'+ICONS.empty+'</span><span class="lbl">Svuota ripiani<small>tutto da un ripiano all\u2019altro</small></span></button>'+
+    '<button class="tool c-reset" data-t="reset"><span class="ico">'+ICONS.reset+'</span><span class="lbl">Ripristina<small>dati iniziali / prova</small></span></button></div>';
+  wrap.querySelector('[data-t="new"]').onclick=()=>openNewScaffale('');
+  wrap.querySelector('[data-t="struct"]').onclick=()=>startBatch('struct',null);
+  wrap.querySelector('[data-t="empty"]').onclick=()=>startBatch('movecont',null);
+  wrap.querySelector('[data-t="reset"]').onclick=openReset;
+  return wrap;
+}
 function openMenu(kind,code){
   const wrap=document.createElement('div');wrap.className='sheet-wrap';
   const sh=document.createElement('div');sh.className='sheet';wrap.appendChild(sh);
